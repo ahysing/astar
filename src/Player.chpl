@@ -1,0 +1,5 @@
+
+enum Player {
+  Red,
+  Yellow
+}
