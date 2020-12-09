@@ -54,4 +54,56 @@ proc test_countWindows(test: borrowed Test) throws {
     test.assertEqual(2, result);
 }
 
+proc test_countWindows_WindowsAreVertical(test: borrowed Test) throws {
+    const connectFour = new ConnectFour(1);
+    var board : [DLocal] Tile;
+    for i in 0..3 do
+        board[i, 0] = Tile.Red;
+    for i in 1..4 do
+        board[i, 0] = Tile.Red;
+        
+    const state = new State(player=Player.Red, board=board);
+    
+    
+    var result = connectFour.countWindows(state, 4);
+    
+
+    test.assertEqual(2, result);
+}
+
+proc test_countWindows_WindowsAreDiagonalLeftToRight(test: borrowed Test) throws {
+    const connectFour = new ConnectFour(1);
+    var board : [DLocal] Tile;
+    board[0, 0] = Tile.Red;
+    board[1, 1] = Tile.Red;
+    board[2, 2] = Tile.Red;
+    board[3, 3] = Tile.Red;
+        
+    const state = new State(player=Player.Red, board=board);
+    
+    
+    var result = connectFour.countWindows(state, 4);
+    
+
+    test.assertEqual(1, result);
+}
+
+proc test_countWindows_WindowsAreDiagonalRightToLeft(test: borrowed Test) throws {
+    const connectFour = new ConnectFour(1);
+    var board : [DLocal] Tile;
+    board[0, 3] = Tile.Red;
+    board[1, 2] = Tile.Red;
+    board[2, 1] = Tile.Red;
+    board[3, 0] = Tile.Red;
+        
+    const state = new State(player=Player.Red, board=board);
+    
+    
+    var result = connectFour.countWindows(state, 4);
+    
+
+    test.assertEqual(1, result);
+}
+
+
 UnitTest.main();
