@@ -132,12 +132,15 @@ record ConnectFour {
     const vertical = DLocal.dim[0];
     const horizontal = DLocal.dim[1];
     var result = 0;
-    // vertical
+    // horizontal
     for i in vertical {
       var numberOf : int = 0;
       for j in horizontal {
-        if board[i, j] == tile then
-          numberOf += 1;
+          if board[i, j] == tile then
+            numberOf += 1;
+          else
+            numberOf = 0;
+
           
         if numberOf == numRows {
           numberOf = 0;
@@ -146,11 +149,15 @@ record ConnectFour {
       }
     }
 
+    // vertical
     for i in horizontal {
       var numberOf : int = 0;
       for j in vertical {
-        if board[j, i] == tile then
-          numberOf += 1;
+          if board[j, i] == tile then
+            numberOf += 1;
+          else
+            numberOf = 0;
+
 
         if numberOf == numRows {
           numberOf = 0;
@@ -159,6 +166,46 @@ record ConnectFour {
       }
     }
 
+    // Diagonal Left to Right
+    {
+      var i = DLocal.high[0] - 1;
+      var j = DLocal.low[1];
+      var running = true;
+      var numberOf : int = 0;
+      while running {
+        var idx = (i, j);
+        if DLocal.contains(idx) {
+          if board[i, j] == tile then
+            numberOf += 1;
+          else
+            numberOf = 0;
+          
+          if numberOf == numRows {
+            numberOf = 0;
+            result += 1;
+          }
+        }
+
+        running = i != DLocal.low[0] && j != DLocal.high[1] - 1;
+        i += 1;
+        j += 1;
+        if i >= DLocal.high[0] && j >= DLocal.high[1] {
+          i = DLocal.low[0];
+          j = DLocal.low[1] + 1;
+          numberOf = 0;
+        }
+        else if i >= DLocal.high[0] {
+          i = DLocal.high[0] - j - 1;
+          j = DLocal.low[1];
+          numberOf = 0;
+        }
+        else if j >= DLocal.high[1] {
+          j = DLocal.low[0] + DLocal.high[0] - i + 1;
+          i = DLocal.low[0];
+          numberOf = 0;
+        }
+      }
+    }
 
     return result;
   }

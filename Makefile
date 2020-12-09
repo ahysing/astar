@@ -1,14 +1,21 @@
-.PHONY: test debug run
+.PHONY: test debug run clean
 
-all:
-	mason build
+all: target/release/AStar target/debug/AStar
 
-run:
-	mason run --build
+target/release/AStar:
+	mason build --release
 
-debug:
+target/debug/AStar:
 	mason build -g
-	lldb ./target/debug/AStar
+
+run: target/release/AStar
+	mason run
+
+debug: target/debug/AStar
+	lldb target/debug/AStar
 
 test:
 	mason test --show
+
+clean:
+	rm target/release/AStar target/debug/AStar
