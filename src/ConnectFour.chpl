@@ -138,6 +138,7 @@ record ConnectFour {
       for j in horizontal {
         if board[i, j] == tile then
           numberOf += 1;
+          
         if numberOf == numRows {
           numberOf = 0;
           result += 1;
@@ -148,14 +149,16 @@ record ConnectFour {
     for i in horizontal {
       var numberOf : int = 0;
       for j in vertical {
-        if board[i, j] == tile then
+        if board[j, i] == tile then
           numberOf += 1;
+
         if numberOf == numRows {
           numberOf = 0;
           result += 1;
         }
       }
     }
+
 
     return result;
   }

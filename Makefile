@@ -11,4 +11,4 @@ debug:
 	lldb ./target/debug/AStar
 
 test:
-	mason test
+	mason test --show
