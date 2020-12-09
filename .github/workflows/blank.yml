@@ -36,9 +36,21 @@ jobs:
       # Runs a set of commands using the runners shell
       - name: Run a multi-line script
         run: |
-          curl -L https://github.com/chapel-lang/chapel/releases/download/1.23.0/chapel-1.23.0.tar.gz | tar xz
-          cd chapel-1.23.0
-          ls
-          make
+          export CHPL_VERSION=master
+          export CHPL_HOME=/opt/chapel/$CHPL_VERSION
+          export CHPL_GMP=system
+          mkdir -p /opt/chapel
+          curl -L https://github.com/chapel-lang/chapel/releases/download/1.23.0/chapel-1.23.0.tar.gz | tar -xzC /opt/chapel --transform 's/chapel-//'
+          make -C $CHPL_HOME
+          make -C $CHPL_HOME chpldoc test-venv mason
+          make -C $CHPL_HOME cleanall
+          sed -i -e 's/# en_US.UTF-8 UTF-8/en_US.UTF-8 UTF-8/' /etc/locale.gen && \
+          echo 'LANG="en_US.UTF-8"'>/etc/default/locale && \
+          dpkg-reconfigure --frontend=noninteractive locales && \
+          update-locale LANG=en_US.UTF-8
+          export PATH=$PATH:$CHPL_HOME/bin/linux64-x86_64:$CHPL_HOME/util
           
+          ls $CHPL_HOME/bin
+
+
 
