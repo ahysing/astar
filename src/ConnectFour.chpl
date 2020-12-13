@@ -1,3 +1,4 @@
+use Barriers;
 use List;
 use AStar only Searcher, Visit;
 use Player;
@@ -34,70 +35,19 @@ record ConnectFour {
 
   proc isGoalState(state : State) {
     var isGoal : atomic bool = false;
-    
-    const board = state.board;
-    const vertical = DLocal.dim[0];
-    const horizontal = DLocal.dim[1];
-    const lowH = DLocal.low[1];
-    const highH = DLocal.high[1];
-
-    // vertical
-    forall i in vertical {
-      var numberOfRed : int;
-      var numberOfYellow : int;
-      for j in horizontal do
-        if board[i, j] == Tile.Red then
-          numberOfRed += 1;
-        else if board[i, j] == Tile.Yellow then
-          numberOfYellow += 1;
-      
-      if numberOfYellow >= 4 || numberOfRed >= 4 then
+    var finished = new Barrier(2);
+    begin {
+      if countWindows(state.board, Tile.Red) then
         isGoal.testAndSet();
+        finished.notify();
+    }
+    begin {
+      if countWindows(state.board, Tile.Yellow) then
+        isGoal.testAndSet();
+        finished.notify();  
     }
 
-    // vertical
-    forall i in horizontal {
-      var numberOfRed : int;
-      var numberOfYellow : int;
-      for j in vertical do
-        if board[i, j] == Tile.Red then
-          numberOfRed += 1;
-        else if board[i, j] == Tile.Yellow then
-          numberOfYellow += 1;
-
-      if numberOfYellow >= 4 || numberOfRed >= 4 then
-        isGoal.testAndSet();
-    }
-
-    
-    // diagonal left to right
-    forall i in vertical {
-      var numberOfRed : int;
-      var numberOfYellow : int;
-      for j in lowH..(highH - 4) do
-        if board[i, j + i] == Tile.Red then
-          numberOfRed += 1;
-        else if board[i, j + i] == Tile.Yellow then
-          numberOfYellow += 1;
-      
-      if numberOfYellow >= 4 || numberOfRed >= 4 then
-        isGoal.testAndSet();
-    }
-
-    // diagonal right to left
-    forall i in vertical {
-      var numberOfRed : int;
-      var numberOfYellow : int;
-      for j in (lowH + 4)..highH do
-        if board[i, j - i] == Tile.Red then
-          numberOfRed += 1;
-        else if board[i, j - i] == Tile.Yellow then
-          numberOfYellow += 1;
-      
-      if numberOfYellow >= 4 || numberOfRed >= 4 then
-        isGoal.testAndSet();
-    }
-
+    finished.wait();
     return isGoal.read();
   }
 
