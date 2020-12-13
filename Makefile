@@ -1,6 +1,8 @@
-.PHONY: test debug run clean
+.PHONY: all test debug run clean
 
-all: target/release/AStar target/debug/AStar
+all:
+	mason build --release
+	mason build -g
 
 target/release/AStar:
 	mason build --release
