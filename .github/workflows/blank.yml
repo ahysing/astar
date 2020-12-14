@@ -33,7 +33,7 @@ jobs:
           # apt packages to install
           packages: wget ca-certificates curl gcc g++ perl python python-dev python-setuptools libgmp10 libgmp-dev locales bash make mawk file pkg-config git
 
-      - name: Compile chapel
+      - name: Compile chapel run unit tests
         run: |
           export CHPL_VERSION=1.23.0
           export CHPL_HOME=/opt/chapel/$CHPL_VERSION
@@ -47,8 +47,6 @@ jobs:
           export PATH=$PATH:$CHPL_HOME/bin/linux64-x86_64:$CHPL_HOME/util
           
           ls $CHPL_HOME/bin
-      - name: Run Unit tests
-        run: |
           make test -C ${GITHUB_WORKSPACE}
 
 
