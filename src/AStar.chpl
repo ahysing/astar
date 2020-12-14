@@ -47,13 +47,6 @@ module AStar {
       }
     }
 
-    pragma "no doc"
-    proc initializeOpenSet(openSet) {
-      forall (i, j) in openSet.domain do
-        openSet[i, j] = Visit.Unexplored;
-    }
-
-    pragma "no doc"
     proc isEmptySearchSpace(openSet) {
       return openSet.isEmpty();
     }
@@ -82,19 +75,25 @@ module AStar {
       A* search function.
     */
     proc search(start : record, f : real, g : real) : Solution {
+      writeln("Searching...");
       const D: domain(this.eltType) dmapped Hashed(idxType=this.eltType);
-      var fScore : [D] real;
+      writeln("D initialized...");
+      var fScore : [D] real; // TODO: Fix this line.
       fScore[start] = f;
+      writeln("fScore initialized...");
       var gScore : [D] real;
       gScore[start] = g;
+      writeln("gScore initialized...");
       var openSet = new heap(start.type, parSafe=true, comparator=new FScoreComparator(fScore=fScore));
       openSet.push(start);
+      writeln("openSet initialized...");
       var cameFrom = new map(start.type, start.type);
-      
+      writeln("cameFrom initialized...");
       // For node n, gScore[n] is the cost of the cheapest path from start to n currently known.
       
       // For node n, fScore[n] = gScore[n] + h(n). fScore[n] represents our current best guess as to
       // how short a path from start to finish can be if it goes through n.
+      writeln("Search initialized");
       while ! isEmptySearchSpace(openSet) do {
         // This operation can occur in O(1) time if openSet is a min-heap or a priority queue
         const current : State = _nextWithLowestFScore(openSet);

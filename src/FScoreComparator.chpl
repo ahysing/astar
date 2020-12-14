@@ -6,7 +6,7 @@ record FScoreComparator {
 }
 
 proc FScoreComparator.key(i) {
-  var D = this.fScore.domain;
+  const D = this.fScore.domain;
   if D.contains(i) then
     return this.fScore[i];
   else

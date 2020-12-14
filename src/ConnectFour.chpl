@@ -9,14 +9,14 @@ const numColumns : int = 7;
 const DLocal : domain(2) = {0..numRows, 0..numColumns};
 
 record State {
-  var player : Player;
   var board : [DLocal] Tile;
+  var player : Player;
 
   proc init() { }
 
-  proc init(player : Player, board) {
-    this.player = player;
+  proc init(board : [DLocal] Tile, player : Player) {
     this.board = board;
+    this.player = player;
   }
 }
 
@@ -35,19 +35,19 @@ record ConnectFour {
 
   proc isGoalState(state : State) {
     var isGoal : atomic bool = false;
-    var finished = new Barrier(2);
-    begin {
-      if countWindows(state.board, Tile.Red) then
-        isGoal.testAndSet();
-        finished.notify();
-    }
-    begin {
-      if countWindows(state.board, Tile.Yellow) then
-        isGoal.testAndSet();
-        finished.notify();  
+    cobegin {
+      {
+        var nextState = new State(board=state.board, player=Player.Red);
+        if countWindows(nextState, 4) then
+          isGoal.testAndSet();
+      }
+      {
+        var nextState = new State(board=state.board, player=Player.Yellow);
+        if countWindows(nextState, 4) then
+          isGoal.testAndSet();
+      }
     }
 
-    finished.wait();
     return isGoal.read();
   }
 
