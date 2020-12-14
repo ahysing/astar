@@ -6,18 +6,9 @@ module AStar {
   private use Map;
   private use ConnectFour;
   private use FScoreComparator;
+  use Visit;
+  use Solution;
   
-  enum Visit {
-    Unexplored,
-    Open,
-    Closed
-  }
-
-  class Solution {
-    var distance : real;
-    var path : list;
-  }
-
   public class Searcher {
     /* The type of the states contained in this EStar space. */
     type eltType;

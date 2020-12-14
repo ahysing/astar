@@ -4,36 +4,36 @@ use Player;
 use Tile;
 
 proc test_StateEquals(test: borrowed Test) throws {
-  var state = new State();
-  var stateTwo = new State();
+  const state = new State();
+  const stateTwo = new State();
   test.assertTrue(state == stateTwo);
 }
 
 proc test_findNextPlayer_InputIsRed(test: borrowed Test) throws {
   const connectFour = new ConnectFour(1);
   const red = Player.Red;
-  var result = connectFour.findNextPlayer(red);
+  const result = connectFour.findNextPlayer(red);
   test.assertEqual(Player.Yellow, result);
 }
 
 proc test_findNextPlayer_InputIsYellow(test: borrowed Test) throws {
   const connectFour = new ConnectFour(1);
   const red = Player.Yellow;
-  var result = connectFour.findNextPlayer(red);
+  const result = connectFour.findNextPlayer(red);
   test.assertEqual(Player.Red, result);
 }
 
 proc test_placeTile_InputIsRed(test: borrowed Test) throws {
   const connectFour = new ConnectFour(1);
   const red = Player.Red;
-  var result = connectFour.placeTile(red);
+  const result = connectFour.placeTile(red);
   test.assertEqual(Tile.Red, result);
 }
 
 proc test_placeTile_InputIsYellow(test: borrowed Test) throws {
   const connectFour = new ConnectFour(1);
   const red = Player.Yellow;
-  var result = connectFour.placeTile(red);
+  const result = connectFour.placeTile(red);
   test.assertEqual(Tile.Yellow, result);
 }
 
@@ -46,7 +46,7 @@ proc test_countWindows_WindowsAreHorizontal(test: borrowed Test) throws {
       board[2, i] = Tile.Red;    
   const state = new State(player=Player.Red, board=board);
   
-  var result = connectFour.countWindows(state, 4);
+  const result = connectFour.countWindows(state, 4);
 
   test.assertEqual(2, result);
 }
@@ -60,7 +60,7 @@ proc test_countWindows_WindowsAreVertical(test: borrowed Test) throws {
       board[i, 1] = Tile.Red;
   const state = new State(board=board, player=Player.Red);
   
-  var result = connectFour.countWindows(state, 4);
+  const result = connectFour.countWindows(state, 4);
 
   test.assertEqual(2, result);
 }
@@ -74,7 +74,7 @@ proc test_countWindowsDiagonalLeftToRight_WindowsAreDiagonalLeftToRight(test: bo
   board[3, 3] = Tile.Red;    
   const state = new State(board=board, player=Player.Red);
   
-  var result = connectFour.countWindowsDiagonalLeftToRight(state.board, Tile.Red, 4);
+  const result = connectFour.countWindowsDiagonalLeftToRight(state.board, Tile.Red, 4);
   
   test.assertEqual(1, result);
 }
@@ -88,7 +88,7 @@ proc test_countWindows_WindowsAreDiagonalLeftToRight(test: borrowed Test) throws
   board[3, 3] = Tile.Red;    
   const state = new State(board=board, player=Player.Red);
   
-  var result = connectFour.countWindows(state, 4);
+  const result = connectFour.countWindows(state, 4);
   
   test.assertEqual(1, result);
 }
@@ -102,43 +102,41 @@ proc test_countWindows_WindowsAreDiagonalRightToLeft(test: borrowed Test) throws
   board[3, 0] = Tile.Red;   
   const state = new State(board=board, player=Player.Red);
   
-  var result = connectFour.countWindows(state, 4);
+  const result = connectFour.countWindows(state, 4);
   
   test.assertEqual(1, result);
 }
 
 proc test_isGoalState_RedPlayerIsWinning(test: borrowed Test) throws {
-    var board : [DLocal] Tile;
+  var board : [DLocal] Tile;
   board[0, 0] = Tile.Red;
   board[0, 1] = Tile.Red;
   board[0, 2] = Tile.Red;
   board[0, 3] = Tile.Red;  
-  var state = new State(board=board, player=Player.Red);
-  var connectFour = new ConnectFour(1);
+  const state = new State(board=board, player=Player.Red);
+  const connectFour = new ConnectFour(1);
   test.assertTrue(connectFour.isGoalState(state));
 }
 
 proc test_isGoalState_YellowPlayerIsWinning(test: borrowed Test) throws {
-    var board : [DLocal] Tile;
+  var board : [DLocal] Tile;
   board[0, 0] = Tile.Yellow;
   board[0, 1] = Tile.Yellow;
   board[0, 2] = Tile.Yellow;
   board[0, 3] = Tile.Yellow;  
-  var state = new State(board=board, player=Player.Yellow);
-  var connectFour = new ConnectFour(1);
+  const state = new State(board=board, player=Player.Yellow);
+  const connectFour = new ConnectFour(1);
   test.assertTrue(connectFour.isGoalState(state));
 }
 
-
 proc test_isGoalState_NoPlayerIsWinning(test: borrowed Test) throws {
-    var board : [DLocal] Tile;
+  var board : [DLocal] Tile;
   board[0, 0] = Tile.Yellow;
   board[0, 1] = Tile.Yellow;
   board[0, 2] = Tile.Yellow;
-  var state = new State(board=board, player=Player.Yellow);
-  var connectFour = new ConnectFour(1);
+  const state = new State(board=board, player=Player.Yellow);
+  const connectFour = new ConnectFour(1);
   test.assertFalse(connectFour.isGoalState(state));
 }
-
 
 UnitTest.main();

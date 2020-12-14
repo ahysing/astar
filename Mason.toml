@@ -3,7 +3,7 @@ name = "AStar"
 version = "0.1.0"
 chplVersion = "1.23.0"
 license = "None"
-tests = ["ConnectFourTests.chpl"]
+tests = ["AStarTests.chpl", "ConnectFourTests.chpl"]
 
 [dependencies]
 
