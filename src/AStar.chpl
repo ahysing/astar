@@ -62,6 +62,15 @@ module AStar {
       var next = openSet.top();
       return next;
     }
+
+    iter equalsNeigbor(all, neighbor) {
+      for n in all do
+        yield n == neighbor;
+    }
+
+    proc containsNeighbor(all : heap, neighbor) {
+      return (|| reduce equalsNeigbor(all.consume(), neighbor));
+    }
     /*
       A* search function.
     */
@@ -103,10 +112,8 @@ module AStar {
               cameFrom.set(neighbor, current);
               
               // if neighbor not in openSet then add it.
-              for n in openSet.consume() do
-                if n == neighbor then
-                  break;
-              openSet.push(neighbor);
+              if ! containsNeighbor(openSet, neighbor) then
+                openSet.push(neighbor);
             }
           }
         }

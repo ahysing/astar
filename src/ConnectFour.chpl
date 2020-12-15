@@ -252,6 +252,10 @@ record ConnectFour {
   }
 
   proc distance(a : State, b : State) {
-    return 1:real;
+    var distance = 0;
+    for idx in a.board.domain do
+      if a.board[idx] != b.board[idx] then
+        distance += 1;
+    return distance;
   }
 }
