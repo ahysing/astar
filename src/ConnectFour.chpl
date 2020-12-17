@@ -16,13 +16,13 @@ record ConnectFour {
     var isGoal : atomic bool = false;
     cobegin {
       {
-        var nextState = new State(board=context.board);
-        if countWindows(nextState, Player.Red, 4) then
+        var nextState = new GameContext(board=context.board, player=Player.Red);
+        if countWindows(nextState, 4) then
           isGoal.testAndSet();
       }
       {
-        var nextState = new State(board=context.board);
-        if countWindows(nextState, Player.Yellow, 4) then
+        var nextState = new GameContext(board=context.board, player=Player.Yellow);
+        if countWindows(nextState, 4) then
           isGoal.testAndSet();
       }
     }
@@ -64,24 +64,24 @@ record ConnectFour {
         yield createNextState(context, (i, j));
   }
 
-  proc _minimax(state : State, depth : int, maximizingPlayer : bool, player : Player, conf) : real {
-    if depth == 0 || isGoalState(state) then
-      return heuristic(state);
+  proc _minimax(context : GameContext, depth : int, maximizingPlayer : bool, player : Player, conf) : real {
+    if depth == 0 || isGoalState(context) then
+      return heuristic(context);
     else if maximizingPlayer {
       var value = min(real);
-      for col in findNeighbors(state) do
-        value = max(value, _minimax(dropPiece(state, col, player, conf), depth - 1, false, player, conf));
+      for col in findNeighbors(context) do
+        value = max(value, _minimax(dropPiece(conf, col, player, conf), depth - 1, false, player, conf));
       return value;
     }
     else {
       var value = min(real);
-      for col in findNeighbors(state) do
-        value = min(value, _minimax(dropPiece(state, col, findNextPlayer(player), conf), depth - 1, true, player, conf));
+      for col in findNeighbors(context) do
+        value = min(value, _minimax(dropPiece(context, col, findNextPlayer(player), conf), depth - 1, true, player, conf));
       return value;
     }
   }
 
-  proc countWindowsHorizontal(board, tile : Tile, player : Player, windowSize : int) {
+  proc countWindowsHorizontal(board, tile : Tile, windowSize : int) {
     const vertical = board.domain.dim[0];
     const horizontal = board.domain.dim[1];
 
@@ -194,10 +194,10 @@ record ConnectFour {
       at += (1, -1);
 
       if at[1] < board.domain.low[1] { // falling off left edge
-        at = moveDiagonalRight(at, (-2, 1));
+        at = moveDiagonalRight(board.domain, at, (-2, 1));
         tilesInLine = 0;
       } else if at[0] >= board.domain.high[0] { // falling off bottom edge
-        at = moveDiagonalRight(at, (-1, 0));
+        at = moveDiagonalRight(board.domain, at, (-1, 0));
         tilesInLine = 0;
       }
     }
@@ -205,8 +205,9 @@ record ConnectFour {
     return result;
   }
 
-  proc countWindows(state : State, playersTurn : Player, windowSize : int) {
-    const board = state.board;
+  proc countWindows(context : GameContext, windowSize : int) {
+    const board = context.board;
+    const playersTurn = context.player;
     const tile = placeTile(playersTurn);
     var result = 0;
     // horizontal
@@ -220,13 +221,13 @@ record ConnectFour {
     return result;
   }
 
-  proc heuristic(state : State) {
-    const numThrees = countWindows(state, 3);
-    const numFours = countWindows(state, 4);
-    const opponent = findNextPlayer(state.player);
-    const stateOpponent = new State(board=state.board, player=opponent);
-    const numThreesOpponent = countWindows(stateOpponent, 3);
-    const numFoursOpponent = countWindows(stateOpponent, 4);
+  proc heuristic(context : GameContext) {
+    const numThrees = countWindows(context, 3);
+    const numFours = countWindows(context, 4);
+    const opponentP = findNextPlayer(context.player);
+    const opponent = new GameContext(board=context.board, player=opponentP);
+    const numThreesOpponent = countWindows(opponent, 3);
+    const numFoursOpponent = countWindows(opponent, 4);
     return numThrees - (100 * numThreesOpponent) - (10000 * numFoursOpponent) + (1000000 * numFours);
   }
 
