@@ -1,14 +1,6 @@
-record FScoreComparator {
-  var fScore;
-  proc init(fScore) {
-    this.fScore = fScore;
-  }
+record FScoreComparator { 
 }
 
-proc FScoreComparator.key(i) {
-  const D = this.fScore.domain;
-  if D.contains(i) then
-    return this.fScore[i];
-  else
-    return max(real);
+proc FScoreComparator.key(state) {
+  return state;
 }

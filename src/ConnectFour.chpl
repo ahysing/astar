@@ -1,31 +1,10 @@
-use Barriers;
 use List;
-use AStar only Searcher, Visit;
+use AStar only Searcher;
 use Player;
-use Tile;
-
-const numRows : int = 6;
-const numColumns : int = 7;
-const DLocal : domain(2) = {0..numRows, 0..numColumns};
-
-record State {
-  var board : [DLocal] Tile;
-  var player : Player;
-
-  proc init() { }
-
-  proc init(board : [DLocal] Tile, player : Player) {
-    this.board = board;
-    this.player = player;
-  }
-}
-
-proc ==(l: State, r: State) {
-  // This function solves known issue https://github.com/chapel-lang/chapel/issues/7615
-  // Compiler fails to generate default comparison between records with array fields
-    return (l.player == r.player &&
-        (&& reduce (l.board == r.board)));
-}
+use State only State, Tile;
+use StateMapper;
+use Visit;
+private use GameContext;
 
 record ConnectFour {
   var depth : int;
@@ -33,17 +12,17 @@ record ConnectFour {
     this.depth = depth;
   }
 
-  proc isGoalState(state : State) {
+  proc isGoalState(context : GameContext) {
     var isGoal : atomic bool = false;
     cobegin {
       {
-        var nextState = new State(board=state.board, player=Player.Red);
-        if countWindows(nextState, 4) then
+        var nextState = new State(board=context.board);
+        if countWindows(nextState, Player.Red, 4) then
           isGoal.testAndSet();
       }
       {
-        var nextState = new State(board=state.board, player=Player.Yellow);
-        if countWindows(nextState, 4) then
+        var nextState = new State(board=context.board);
+        if countWindows(nextState, Player.Yellow, 4) then
           isGoal.testAndSet();
       }
     }
@@ -69,20 +48,20 @@ record ConnectFour {
       return Tile.Red;
   }
 
-  proc createNextState(state : State, at : 2*int) {
-    var nextBoard = state.board;
-    nextBoard[at] = placeTile(state.player);
-    const nextPlayer = findNextPlayer(state.player);
-    const nextState = new State(player=nextPlayer, board=nextBoard);
+  proc createNextState(context : GameContext, placeAt : 2*int)  : GameContext {
+    var nextBoard = context.board;
+    nextBoard[placeAt] = placeTile(context.player);
+    const nextPlayer = findNextPlayer(context.player);
+    const nextState = new GameContext(player=nextPlayer, board=nextBoard);
     return nextState;
   }
 
-  iter findNeighbors(state) {
-    for (i, j) in DLocal do
-      if i == 0 && state.board[i, j] == Tile.Unset then
-        yield createNextState(state, (i, j));
-      else if  i > 0 && state.board[i, j] == Tile.Unset && state.board[i - 1, j] != Tile.Unset then
-        yield createNextState(state, (i, j));
+  iter findNeighbors(context : GameContext) {
+    for (i, j) in context.board.domain do
+      if i == 0 && context.board[i, j] == Tile.Unset then
+        yield createNextState(context, (i, j));
+      else if  i > 0 && context.board[i, j] == Tile.Unset && context.board[i - 1, j] != Tile.Unset then
+        yield createNextState(context, (i, j));
   }
 
   proc _minimax(state : State, depth : int, maximizingPlayer : bool, player : Player, conf) : real {
@@ -102,9 +81,9 @@ record ConnectFour {
     }
   }
 
-  proc countWindowsHorizontal(board, tile, windowSize: int) {
-    const vertical = DLocal.dim[0];
-    const horizontal = DLocal.dim[1];
+  proc countWindowsHorizontal(board, tile : Tile, player : Player, windowSize : int) {
+    const vertical = board.domain.dim[0];
+    const horizontal = board.domain.dim[1];
 
     var result = 0;
     for i in vertical {
@@ -124,9 +103,9 @@ record ConnectFour {
     return result;
   }
 
-  proc countWindowsVertical(board, tile: Tile, windowSize: int) {
-    const vertical = DLocal.dim[0];
-    const horizontal = DLocal.dim[1];
+  proc countWindowsVertical(board, tile : Tile, windowSize : int) {
+    const vertical = board.domain.dim[0];
+    const horizontal = board.domain.dim[1];
     var result = 0;
     for i in horizontal {
       var tilesInLine : int = 0;
@@ -145,10 +124,10 @@ record ConnectFour {
     return result;
   }
 
-  proc moveAlong(in_at, delta : 2*int) {
+  proc moveAlong(currentDomain, in_at : 2*int, delta : 2*int) {
     var at = in_at;
     var next = at;
-    while DLocal.contains(next) {
+    while currentDomain.contains(next) {
       at = next;
       next = at + delta;
     }
@@ -156,17 +135,17 @@ record ConnectFour {
     return at;
   }
 
-  proc moveDiagonalLeft(at_in : 2*int, initial : 2*int) {
+  proc moveDiagonalLeft(currentDomain, at_in : 2*int, initial : 2*int) {
     const delta = (-1, -1);
     const at = at_in + initial;
-    return moveAlong(at, delta);
+    return moveAlong(currentDomain, at, delta);
   }
 
-  proc countWindowsDiagonalLeftToRight (board, tile: Tile, windowSize: int) {
-    var at = (DLocal.high[0] - 1, DLocal.low[1]);
+  proc countWindowsDiagonalLeftToRight (board, tile : Tile, windowSize : int) {
+    var at = (board.domain.high[0] - 1, board.domain.low[1]);
     var result = 0;
     var tilesInLine = 0;
-    while DLocal.contains(at) {
+    while board.domain.contains(at) {
       if board[at] == tile then
         tilesInLine += 1;
       else
@@ -179,11 +158,11 @@ record ConnectFour {
 
       at += (1, 1);
 
-      if at[1] >= DLocal.high[1] { // falling of the right edge
-        at = moveDiagonalLeft(at, (-2, -1));
+      if at[1] >= board.domain.high[1] { // falling of the right edge
+        at = moveDiagonalLeft(board.domain, at, (-2, -1));
         tilesInLine = 0;
-      } else if at[0] >= DLocal.high[0] { // falling of the bottom edge
-        at = moveDiagonalLeft(at, (-1, 0));
+      } else if at[0] >= board.domain.high[0] { // falling of the bottom edge
+        at = moveDiagonalLeft(board.domain, at, (-1, 0));
         tilesInLine = 0;
       }
     }
@@ -191,17 +170,17 @@ record ConnectFour {
     return result;
   }
 
-  proc moveDiagonalRight(at_in : 2*int, initial : 2*int) {
+  proc moveDiagonalRight(currentDomain, at_in : 2*int, initial : 2*int) {
     const delta = (-1, 1);
     const at = at_in + initial;
-    return moveAlong(at, delta);
+    return moveAlong(currentDomain, at, delta);
   }
 
-  proc countWindowsDiagonalRightToLeft (board, tile: Tile, windowSize: int) {
-    var at = (DLocal.high[0] - 1, DLocal.high[1] - 1);
+  proc countWindowsDiagonalRightToLeft (board, tile : Tile, windowSize : int) {
+    var at = (board.domain.high[0] - 1, board.domain.high[1] - 1);
     var result = 0;
     var tilesInLine = 0;
-    while DLocal.contains(at) {
+    while board.domain.contains(at) {
       if board[at] == tile then
         tilesInLine += 1;
       else
@@ -214,10 +193,10 @@ record ConnectFour {
 
       at += (1, -1);
 
-      if at[1] < DLocal.low[1] { // falling off left edge
+      if at[1] < board.domain.low[1] { // falling off left edge
         at = moveDiagonalRight(at, (-2, 1));
         tilesInLine = 0;
-      } else if at[0] >= DLocal.high[0] { // falling off bottom edge
+      } else if at[0] >= board.domain.high[0] { // falling off bottom edge
         at = moveDiagonalRight(at, (-1, 0));
         tilesInLine = 0;
       }
@@ -226,9 +205,9 @@ record ConnectFour {
     return result;
   }
 
-  proc countWindows(state : State, windowSize : int) {
+  proc countWindows(state : State, playersTurn : Player, windowSize : int) {
     const board = state.board;
-    const tile = placeTile(state.player);
+    const tile = placeTile(playersTurn);
     var result = 0;
     // horizontal
     result += countWindowsHorizontal(board, tile, windowSize);

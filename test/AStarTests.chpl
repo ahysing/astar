@@ -1,7 +1,7 @@
 use UnitTest;
 use AStar;
 use Heap;
-
+use StateMapper;
 class Foo {
 }
 
@@ -11,14 +11,16 @@ record Impl {
 proc test_init_Searcher(test: borrowed Test) throws {
   const foo = new Foo();
   const impl = new Impl();
-  const searcher = new Searcher(foo.type, impl);
+  const mapper = new StateMapper();
+  const searcher = new Searcher(foo.type, mapper, impl);
   test.assertTrue(true);
 }
 
 proc test_containsNeighbor_InputContainsNeigbor(test: borrowed Test) throws {
   const foo = new Foo();
   const impl = new Impl();
-  const searcher = new Searcher(foo.type, impl);
+  const mapper = new StateMapper();
+  const searcher = new Searcher(foo.type, mapper, impl);
   const n : int = 1;
   var all = new heap(int);
   all.push(2);
@@ -32,7 +34,8 @@ proc test_containsNeighbor_InputContainsNeigbor(test: borrowed Test) throws {
 proc test_containsNeighbor_InputLacksNeigbor(test: borrowed Test) throws {
   const foo = new Foo();
   const impl = new Impl();
-  const searcher = new Searcher(foo.type, impl);
+  const mapper = new StateMapper();
+  const searcher = new Searcher(foo.type, mapper, impl);
   const n : int = 1;
   var all = new heap(int);
   all.push(2);
