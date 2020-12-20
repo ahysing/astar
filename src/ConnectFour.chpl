@@ -2,7 +2,6 @@ use List;
 use AStar only Searcher;
 use Player;
 use State only State, Tile;
-use StateMapper;
 private use GameContext;
 
 record ConnectFour {
@@ -61,6 +60,10 @@ record ConnectFour {
         yield createNextState(context, (i, j));
       else if  i > 0 && context.board[i, j] == Tile.Unset && context.board[i - 1, j] != Tile.Unset then
         yield createNextState(context, (i, j));
+  }
+
+  proc numberOfNeighborsNext() {
+    return 7;
   }
 
   proc _minimax(context : GameContext, depth : int, maximizingPlayer : bool, player : Player, conf) : real {

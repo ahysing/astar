@@ -11,7 +11,7 @@ module AStar {
     const connectFour = new ConnectFour(5);
     const gameContext = new GameContext(player=Player.Red);
     const stateMapper = new StateMapper();
-    var searcher = new Searcher(GameContext, stateMapper, connectFour);
+    var searcher = new Searcher(GameContext, connectFour);
     const g = 0.0;    
     var solution = searcher.search(gameContext, g);
     writeln("distance", solution.distance);
