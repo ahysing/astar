@@ -3,7 +3,6 @@ use AStar only Searcher;
 use Player;
 use State only State, Tile;
 use StateMapper;
-use Visit;
 private use GameContext;
 
 record ConnectFour {

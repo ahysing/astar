@@ -2,10 +2,13 @@ use UnitTest;
 use AStar;
 use Heap;
 use StateMapper;
+
 class Foo {
+  proc init() { }
 }
 
 record Impl {
+  proc init() { }
 }
 
 proc test_init_Searcher(test: borrowed Test) throws {

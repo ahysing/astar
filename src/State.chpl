@@ -19,3 +19,9 @@ record State {
     this.board = board;
   }
 }
+
+// this reverts compiler saying
+// internal error: UTI-MIS-0788 chpl version 1.23.0
+proc ==(l: State, r: State) {
+  return && reduce (l.board == r.board);
+}
