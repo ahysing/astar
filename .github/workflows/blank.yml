@@ -41,8 +41,8 @@ jobs:
 
           mkdir -p $CHPL_HOME
           curl -L https://github.com/chapel-lang/chapel/releases/download/$CHPL_VERSION/chapel-$CHPL_VERSION.tar.gz | tar -xzC /opt/chapel --transform 's/chapel-//'
-          make -j 8 -C $CHPL_HOME
-          make -j 8 -C $CHPL_HOME chpldoc test-venv mason
+          make -j 16 -C $CHPL_HOME
+          make -j 16 -C $CHPL_HOME chpldoc test-venv mason
           
           export PATH=$PATH:$CHPL_HOME/bin/linux64-x86_64:$CHPL_HOME/util
           

@@ -46,7 +46,7 @@ record ConnectFour {
       return Tile.Red;
   }
 
-  proc createNextState(context : GameContext, placeAt : 2*int)  : GameContext {
+  proc _createNextState(context : GameContext, placeAt : 2*int)  : GameContext {
     var nextBoard = context.board;
     nextBoard[placeAt] = placeTile(context.player);
     const nextPlayer = findNextPlayer(context.player);
@@ -57,9 +57,9 @@ record ConnectFour {
   iter findNeighbors(context : GameContext) {
     for (i, j) in context.board.domain do
       if i == 0 && context.board[i, j] == Tile.Unset then
-        yield createNextState(context, (i, j));
+        yield _createNextState(context, (i, j));
       else if  i > 0 && context.board[i, j] == Tile.Unset && context.board[i - 1, j] != Tile.Unset then
-        yield createNextState(context, (i, j));
+        yield _createNextState(context, (i, j));
   }
 
   proc numberOfNeighborsNext() {
