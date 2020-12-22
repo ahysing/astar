@@ -20,7 +20,7 @@ debug: target/debug/AStar
 	lldb target/debug/AStar
 
 test:
-	mason test --show
+	mason test --show --print-callstack-on-error
 
 clean:
 	rm target/release/AStar target/debug/AStar

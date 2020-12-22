@@ -6,6 +6,7 @@ module AStar {
   private use Map;
   private use ConnectFour;
   private use BlockDist;
+  private use DistributedDeque;
 
   class ScoredElement {
     var elementAt : int(64);
@@ -40,10 +41,13 @@ module AStar {
   }
 
   class NextStep {
-    var at;
-    var next : owned NextStep?;
-    proc init() {
-      this.at = nil;
+    type eltType;
+    const at : eltType;
+    var next : owned NextStep(eltType)? = nil;
+    
+    proc init(type eltType, at : eltType) {
+      this.eltType = eltType;
+      this.at = at;
       this.next = nil;
     }
   }
@@ -55,20 +59,25 @@ module AStar {
     }
 
     proc create(start : this.eltType) {
-      var cameFrom  = new NextStep();
-      cameFrom.at = start;
-      return new Solution(this.eltType, cameFrom);
+      return new Solution(this.eltType, start);
     }
   }
 
   class Solution {
-    type eltType;
+    type eltType = int;
     var distance : real;
-    var cameFrom : NextStep;
+    var cameFrom : owned NextStep(eltType)?;
 
-    proc init(type eltType, cameFrom) {
+    proc init() {
+      this.eltType = object;
+      this.distance = 0.0:real;
+      this.cameFrom = nil;
+    }
+
+    proc init(type eltType, start : eltType) {
       this.eltType = eltType;
       this.distance = 0.0:real;
+      var cameFrom = new owned NextStep(this.eltType, start);
       this.cameFrom = cameFrom;
     }
   }
@@ -78,10 +87,10 @@ module AStar {
     type eltType;
     /* The distance, heuristic, findNeighbors, isGoalState functions */
     forwarding var impl : record;
-    var solutionFactory : SolutionFactory;
+    const solutionFactory : SolutionFactory;
     // ...AStar/src/AStar.chpl:32: error: Attempting to allocate > max(size_t) bytes of memory
-    const _low : int(64) = 0;
-    const _high : int(64) = 1 << 42;
+    param _low : int(64) = 0;
+    param _high : int(64) = 1 << 42;
     const bbox = {_low.._high};
     const ALL : domain(1) dmapped Block(boundingBox=bbox);
     var D : sparse subdomain(ALL);
@@ -101,13 +110,15 @@ module AStar {
         return visited.size == 0;
     }
 
-    proc _getElementWithLowestFScore(visited, allStates) {
-      var lowestIdx = visited.low;
+    proc _getElementWithLowestFScore(visited, fScore, allStatesFirst : DistDeque(this.eltType), allStatesSecond : DistDeque(this.eltType)) {
+      var lowestIdx : visited.idxType;
       var lowestScore = max(real);
+      var (_, lowestValue) : (bool, this.eltType) = allStatesFirst.pop();
+      
+      // TODO
       for d in visited do
-        if fScore[d] < lowestScore then
-          lowestIdx = d;
-      return (lowestIdx, allStates[lowestIdx]);
+        lowestIdx = d;
+      return (lowestIdx, lowestValue);
     }
 
     proc _clearAllBuffers() {
@@ -120,26 +131,23 @@ module AStar {
     /*
       A* sea rch function.
     */
-    proc aStar(start : borrowed this.eltType, g : real) : Solution {
+    proc aStar(start : this.eltType, g : real) : Solution {
       writeln("Searching...");
+      var allStatesFirst = new DistDeque(this.eltType, cap=(_high-_low));
+      var allStatesSecond = new DistDeque(this.eltType, cap=(_high-_low));
+
       var solution = this.solutionFactory.create(start);
       _clearAllBuffers();
 
-      var visited : subdomain(this.ALL);
+      var visited : domain(int(64));
       writeln("visited initialized...");
-      var cameFromIt = 0;
-      solution.cameFrom.add(cameFromIt);
-      solution.cameFrom[cameFromIt] = start;
-      writeln("cameFrom initialized...");
-      const startIdx = this.ALL.low();
-      D.add(startIdx);
+      const startIdx = this.ALL.low;
+      this.D.add(startIdx);
       visited.add(startIdx);
 
-      var allStates : [this.D] this.eltType?;
       var fScore : [this.D] real;
       var gScore : [this.D] real;
 
-      allStates[startIdx] = start;
       const f = impl.heuristic(start);
       fScore[startIdx] = f;
       gScore[startIdx] = g;
@@ -151,16 +159,16 @@ module AStar {
       writeln("Search initialized");
       var it = startIdx;
       while ! _isEmptySearchSpace(visited) do {
-        const (i, current) = _getElementWithLowestFScore(visited);
+        const (i, current) = _getElementWithLowestFScore(visited, fScore, allStatesFirst, allStatesSecond);
         visited.remove(i);
         if impl.isGoalState(current) {
           solution.distance = gScore[it];
           return solution;
         } else {
             // tentativeGScore is the distance from start to the neighbor through current
-          const numNeighbors = impl.numberOfNeighborsNext();
           var accumulatedNeigbors : atomic int;
-          for (j, neighbor) in zip(impl.findNeighbors(current), 0..numNeighbors) do {
+          for neighbor in impl.findNeighbors(current) do {
+            const j = accumulatedNeigbors.fetchAdd(1) + 1;
             const d = impl.distance(current, neighbor);
             const tentativeGScore = gScore[it] + d;
             const itNeighbor = it + j;
@@ -184,17 +192,16 @@ module AStar {
                 // We know we hare passing through neighbor.
                 const f = tentativeGScore + h;
                 fScore[itNeighbor] = f;
-                allStates[itNeighbor] = neighbor;
-                accumulatedNeigbors.add(1);
               }
             }
           }
 
-          it += accumulatedNeigbors.get();
+          const step = accumulatedNeigbors.fetchAdd(0:int(64));
+          it += step;
         }
       }
       // Open set is empty but goal was never reached
-      return new Solution(distance=0.0, path=nil);
+      return solution;
     }
   }
 }

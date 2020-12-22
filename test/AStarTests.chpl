@@ -15,8 +15,8 @@ record CounterImpl {
     return context.value == 10;
   }
 
-  proc numberOfNeighborsNext() {
-    return 1;
+  iter findNeighbors(context : Int) {
+    yield new Int(context.value + 1);
   }
 
   proc heuristic(context : Int) {
@@ -37,16 +37,19 @@ proc test_init_Searcher(test: borrowed Test) throws {
   test.assertTrue(true);
 }
 
-class Int {
-  var value : int;
+record Int {
+  var value : int = 0;
+}
+
+proc ==(l: Int, r: Int) {
+  return (l.value == r.value);
 }
 
 proc test_aStar(test: borrowed Test) throws {
   const impl = new CounterImpl();
   const searcher = new Searcher(Int, impl);
-  var start = new Int(1);
+  var start = new Int();
   const g = 0.0:real;
-
   var result = searcher.aStar(start, g);
   test.assertTrue(true);
 }
@@ -54,9 +57,8 @@ proc test_aStar(test: borrowed Test) throws {
 proc test_aStar_inputIsCountOneToTen_OutputIsDistanceNine(test: borrowed Test) throws {
   const impl = new CounterImpl();
   const searcher = new Searcher(Int, impl);
-  var start = new Int(1);
+  var start = new Int();
   const g = 0.0:real;
-
   var result = searcher.aStar(start, g);
   test.assertEquals(9, result.distance);
 }
