@@ -1,10 +1,5 @@
 use UnitTest;
 use AStar;
-use Heap;
-
-class Foo {
-  proc init() { }
-}
 
 record Impl {
   proc init() { }
@@ -29,7 +24,7 @@ record CounterImpl {
 }
 
 proc test_init_Searcher(test: borrowed Test) throws {
-  const foo = new Foo();
+  const foo = new Int();
   const impl = new Impl();
 
   const searcher = new Searcher(foo.type, impl);
@@ -59,8 +54,8 @@ proc test_aStar_inputIsCountOneToTen_OutputIsDistanceNine(test: borrowed Test) t
   const searcher = new Searcher(Int, impl);
   var start = new Int();
   const g = 0.0:real;
-  var result = searcher.aStar(start, g);
-  test.assertEquals(9, result.distance);
+  var (distance,_) = searcher.aStar(start, g);
+  test.assertEqual(9.0, distance);
 }
 
 UnitTest.main();

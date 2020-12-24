@@ -62,10 +62,6 @@ record ConnectFour {
         yield _createNextState(context, (i, j));
   }
 
-  proc numberOfNeighborsNext() {
-    return 7;
-  }
-
   proc _minimax(context : GameContext, depth : int, maximizingPlayer : bool, player : Player, conf) : real {
     if depth == 0 || isGoalState(context) then
       return heuristic(context);
