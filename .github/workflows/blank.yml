@@ -31,8 +31,13 @@ jobs:
           make -j 16 -C $CHPL_HOME chpldoc test-venv mason
           
           export PATH=$PATH:$CHPL_HOME/bin/linux64-x86_64:$CHPL_HOME/util
-          
-          ls $CHPL_HOME/bin
+          echo
+          echo "------------ Compile Code -------------"
+          echo          
+          make -C ${GITHUB_WORKSPACE}
+          echo
+          echo "------------ Run Tests -------------"
+          echo
           make test -C ${GITHUB_WORKSPACE}
 
 

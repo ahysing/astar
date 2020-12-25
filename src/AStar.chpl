@@ -55,16 +55,20 @@ module AStar {
       return (idx, element);
     }
 
-    proc _insertUnique(solution, neighbor : this.eltType) {
+    proc _insertUnique(ref path : LinkedList(this.eltType), neighbor : this.eltType) {
+      path.remove(neighbor);
+      while path.contains(neighbor) do
+        path.remove(neighbor);
+      path.push_back(neighbor);
     }
   
-    proc createSolution(distanceToStart : real, start : this.eltType) {
+    proc _createSolution(distanceToStart : real, start : this.eltType) {
       var path = new LinkedList(this.eltType);
       path.push_front(start);
       return (distanceToStart, path);
     }
 
-    proc remove(visited : DistBag(2*int(64)), value : 2*int(64)) {
+    proc _remove(visited : DistBag(2*int(64)), value : 2*int(64)) {
       var next = new DistBag(2*int(64));
       var (ok, element) = visited.remove();
       while ok {
@@ -78,7 +82,7 @@ module AStar {
       return next;
     }
 
-    proc isNeighbor(i : int(64), allStates, neighbor : this.eltType) {
+    proc _isNeighbor(i : int(64), allStates, neighbor : this.eltType) {
       if allStates[i] == neighbor then
         return i;
       else
@@ -86,12 +90,12 @@ module AStar {
     }
 
       /*
-        A* sea rch function.
+        A* search function.
       */
     proc aStar(start : this.eltType, distanceToStart : real) : (real, LinkedList(this.eltType)) {      
       writeln("visited initialized...");
       const _low : int(64) = 0;
-      const _high : int(64) = 1 << 42;
+      const _high : int(64) = 1 << 24;
     
       const startIdx = _low;
       const bbox = {_low.._high};
@@ -117,13 +121,13 @@ module AStar {
       
       while ! _isEmptySearchSpace(visited) do {
         const (idx, current) = _getElementWithLowestFScore(visited, fScores, allStates);
-        visited = remove(visited, idx);
+        visited = _remove(visited, idx);
         if impl.isGoalState(current) then
           return (gScores[idx[0]], path);
         else {
           for neighbor in impl.findNeighbors(current) do {
             const tentativeGScore = gScores[idx[0]] + impl.distance(current, neighbor);
-            var idxNeighbor = (& reduce isNeighbor(startIdx..size, allStates, neighbor));
+            var idxNeighbor = (& reduce _isNeighbor(startIdx..size, allStates, neighbor));
             var added = idxNeighbor >= size || tentativeGScore < gScores[idxNeighbor];
             if idxNeighbor >= size {
               idxNeighbor = size;
@@ -132,7 +136,7 @@ module AStar {
               path.push_back(neighbor);
             } else if tentativeGScore < gScores[idxNeighbor] {
               // This path to neighbor is better than any previous one. Record it!
-              //_insertUnique(distance, neighbor);
+              _insertUnique(path, neighbor);
               if ! visited.contains((idxNeighbor, idxNeighbor)) then
                 visited.add((idxNeighbor, idxNeighbor));
               //path.push_back(neighbor);
@@ -150,7 +154,7 @@ module AStar {
           }
         }
       }
-      return createSolution(distanceToStart, start);
+      return _createSolution(distanceToStart, start);
     }
   }
 }
