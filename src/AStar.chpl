@@ -9,26 +9,6 @@ module AStar {
   type scoreIdxT = int(64);
   type stateIdxT = int(64);
 
-  class FScoreScanOp : ReduceScanOp {
-    type eltType;
-    var value : eltType;
-    proc identity         return ((0:scoreIdxT,0:stateIdxT), max(real));
-    proc accumulateOntoState(ref state, x: eltType) {
-      if x[1] < state[1] then
-        state = x;
-      else
-        state = state;
-    }
-    proc accumulate(elm)  {
-      accumulateOntoState(value, elm);
-    }
-    proc combine(other : FScoreScanOp(eltType=eltType)) {
-      accumulateOntoState(value, other.value);
-    }
-    proc generate()       return value;
-    proc clone()          return new unmanaged FScoreScanOp(eltType=eltType);
-  }
-
   public class Searcher {
     /* The type of the states contained in this EStar space. */
     type eltType;
@@ -51,13 +31,12 @@ module AStar {
     }
 
     proc _pickScoresAndState(idx : (scoreIdxT, stateIdxT), fScores) {
-      return (idx, fScores[idx[0]]);
+      return (fScores[idx[0]], idx);
     }
 
     proc _getElementWithLowestFScore(visited : DistBag((scoreIdxT, stateIdxT)), fScores, allStates) {
       const indicesThenFScores = _pickScoresAndState(visited.these(), fScores);
-      const current = FScoreScanOp reduce indicesThenFScores;
-      const idx = current[0];
+      const (_, idx) = minloc reduce indicesThenFScores;
       const element = allStates[idx[1]];
       return (idx, element);
     }

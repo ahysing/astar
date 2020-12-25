@@ -180,7 +180,7 @@ proc test_getElementWithLowestFScore(test: borrowed Test) throws {
   const searcher = new Searcher(Int, impl);
   
   var result = searcher._getElementWithLowestFScore(visited, fScores, allStates);
-
+  test.assertEqual((1, 1), result[0]);
   test.assertEqual(1, result[1].value);
 }
 
