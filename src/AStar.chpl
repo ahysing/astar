@@ -40,10 +40,21 @@ module AStar {
       return (idx, element);
     }
 
-    proc _removePreviousPathPushBack(ref path : LinkedList(this.eltType), neighbor : this.eltType) {
-      while path.contains(neighbor) do
-        path.remove(neighbor);
-      path.push_back(neighbor);
+    proc _removeDuplicatesPushBack(ref path : LinkedList(this.eltType), nextPaths) {
+      var nextPath : this.eltType;
+      var minGScore = max(real);
+      for (pGScore, p) in nextPaths {
+        if pGScore < minGScore {
+          minGScore = pGScore;
+          nextPath = p;
+        }
+      }
+      
+      if minGScore != max(real) {
+        while path.contains(nextPath) do
+          path.remove(nextPath);
+        path.push_back(nextPath);
+      }
     }
  
     proc _createSolution(distanceToStart : real, start : this.eltType) {
@@ -96,10 +107,13 @@ module AStar {
           return (gScores[idx], path);
         else {
           visited = _remove(visited, idx);
-          var allNebours = new LinkedList(this.eltType);
+
+          var nextPaths : domain((real, this.eltType));
+          var allNebours : domain(this.eltType);
           for neighbor in  impl.findNeighbors(current) do
-            allNebours.push_back(neighbor);
-          for neighbor in allNebours do {
+            allNebours += neighbor;
+          
+          forall neighbor in allNebours do {
             const tentativeGScore = gScores[idx] + impl.distance(current, neighbor);
             const (foundNeighbor, idxNeighbor) = search(allStates, neighbor, sorted = false);
             if ! foundNeighbor {
@@ -109,29 +123,28 @@ module AStar {
               // heuristic(neighbor) is the heuristic distance from neighbor to finish
               // fScore[neighbor] is the heuristic distance from start to finish.
               // We know we hare passing through neighbor.
-              on  fScores[nextIdx] do
-                fScores[nextIdx] = tentativeGScore + impl.heuristic(neighbor);
+              fScores[nextIdx] = tentativeGScore + impl.heuristic(neighbor);
            
               visited.add(nextIdx);
               size.add(1);
-              // This path to neighbor is better than any previous one. Record it!
-              path.push_back(neighbor);
+              nextPaths.add((tentativeGScore, neighbor));
             } else if tentativeGScore < gScores[idxNeighbor] {
               gScores[idxNeighbor] = tentativeGScore;
               // heuristic(neighbor) is the heuristic distance from neighbor to finish
               // fScore[neighbor] is the heuristic distance from start to finish.
               // We know we hare passing through neighbor.
-              on  fScores[idxNeighbor] do
-                fScores[idxNeighbor] = tentativeGScore + impl.heuristic(neighbor);
+              fScores[idxNeighbor] = tentativeGScore + impl.heuristic(neighbor);
 
               if ! visited.contains(idxNeighbor) {
                 visited.add(idxNeighbor);
                 size.add(1);
               }
-              // This path to neighbor is better than any previous one. Record it!
-              _removePreviousPathPushBack(path, neighbor);
+              nextPaths.add((tentativeGScore, neighbor));
             }
           }
+          // This path to neighbor is better than any previous one. Record it!
+
+          _removeDuplicatesPushBack(path, nextPaths);
         }
       }
       return _createSolution(distanceToStart, start);
