@@ -2,41 +2,32 @@
 module AStar {
   use LinkedLists;
   private use BlockDist;
-  use DistributedDeque;
-  use DistributedBag;
+  private use DistributedBag;
 
-  record _Noop {
-  }
-
-  class MinFScore: ReduceScanOp {
-    var eltType;
-    var value: (2*int(64), record, real) = ((0,0), new _Noop(), max(real));
-    proc identity         return ((0,0), new _Noop(), max(real));
+  class FScoreScanOp : ReduceScanOp {
+    type eltType;
+    var value : eltType;
+    proc identity         return ((0:int(64),0:int(64)), max(real));
+    proc accumulateOntoState(ref state, x: eltType) {
+      if x[1] < state[1] then
+        state = x;
+      else
+        state = state;
+    }
     proc accumulate(elm)  {
-      // value = value + elm;
-      if elm[2] < value[2] then
-        value = elm;
+      accumulateOntoState(value, elm);
     }
-    proc accumulateOntoState(ref state, elm) {
-      // state = state + elm;
-      if elm[2] < state[2] then
-        state = elm;
-    }
-    proc combine(other) {
-      // value = value + other.value;
-      if other[2] < other[2] then
-        other = other;
+    proc combine(other : FScoreScanOp(eltType=eltType)) {
+      accumulateOntoState(value, other.value);
     }
     proc generate()       return value;
-    proc clone()          return new unmanaged MinFScore();
+    proc clone()          return new unmanaged FScoreScanOp(eltType=eltType);
   }
 
   public class Searcher {
     /* The type of the states contained in this EStar space. */
     type eltType;
     var impl : record;
-    // ...AStar/src/AStar.chpl:32: error: Attempting to allocate > max(size_t) bytes of memory
-    const allStatesFirst;
 
     /*
       Initializes an empty Searcher.
@@ -46,41 +37,58 @@ module AStar {
     proc init(type eltType, impl : record) {
       this.eltType = eltType;
       this.impl = impl;
-      this.allStatesFirst = new DistBag(this.eltType);
-
     }
 
     proc _isEmptySearchSpace(allStates) {
       return allStates.getSize() == 0;
     }
 
-    proc _pickScoresAndState(idx : 2*int(64), fScore, allStates) {
-      return (idx, allStates[idx[1]], fScore[idx[0]]);
+    proc _pickScoresAndState(idx : 2*int(64), fScores) {
+      return (idx, fScores[idx[0]]);
     }
 
     proc _getElementWithLowestFScore(ref visited : DistBag(2*int(64)), ref fScores, ref allStates) {
-      var indicesStatesFScores = _pickScoresAndState(visited.these(), fScores, allStates);
-      var current = ((0,0), new _Noop(), max(real)); // (MinFScore() reduce indicesStatesFScores);
-      forall indicesStateFScore in indicesStatesFScores do
-        if indicesStateFScore[2] > current[2] then
-          current = indicesStateFScore;
-      return (current[0], current[1]);
+      const indicesStatesFScores = _pickScoresAndState(visited.these(), fScores);
+      const current = FScoreScanOp reduce indicesStatesFScores;
+      const idx = current[0];
+      const element = allStates[idx[1]];
+      return (idx, element);
     }
 
     proc _insertUnique(solution, neighbor : this.eltType) {
     }
   
-    proc createSolution(start : this.eltType, distanceToStart : real) {
+    proc createSolution(distanceToStart : real, start : this.eltType) {
       var path = new LinkedList(this.eltType);
       path.push_front(start);
       return (distanceToStart, path);
     }
+
+    proc remove(visited : DistBag(2*int(64)), value : 2*int(64)) {
+      var next = new DistBag(2*int(64));
+      var (ok, element) = visited.remove();
+      while ok {
+        if element != value then
+          next.add(element);    
+        const (n_ok, n_element) = visited.remove();
+        ok = n_ok;
+        element = n_element;
+      }
+
+      return next;
+    }
+
+    proc isNeighbor(i : int(64), allStates, neighbor : this.eltType) {
+      if allStates[i] == neighbor then
+        return i;
+      else
+        return max(i.type);
+    }
+
       /*
         A* sea rch function.
       */
-    proc aStar(start : this.eltType, distanceToStart : real) : (real, LinkedList(this.eltType)) {
-      var solution = createSolution(start, distanceToStart);
-      
+    proc aStar(start : this.eltType, distanceToStart : real) : (real, LinkedList(this.eltType)) {      
       writeln("visited initialized...");
       const _low : int(64) = 0;
       const _high : int(64) = 1 << 42;
@@ -91,98 +99,58 @@ module AStar {
       const ALL : domain(1) dmapped Block(boundingBox=bbox) = bbox;
 
       var fScores : [ALL] real;
-      var gScores : [ALL] real;
+      var gScores : [ALL] real = max(real);
       var size : int(64) = 1;
-      const f = impl.heuristic(start);
       // For node n, gScore[n] is the cost of the cheapest path from start to n currently known.
       
       // For node n, fScore[n] = gScore[n] + h(n). fScore[n] represents our current best guess as to
       // how short a path from start to finish can be if it goes through n.
-      fScores[startIdx] = f;
+      fScores[startIdx] = impl.heuristic(start);
       gScores[startIdx] = distanceToStart;
 
       var allStates : [ALL] this.eltType;
       var visited = new DistBag(2*int(64));
       visited.add((0, 0));
+
+      var path = new LinkedList(this.eltType);
+      path.push_front(start);
+      
       while ! _isEmptySearchSpace(visited) do {
         const (idx, current) = _getElementWithLowestFScore(visited, fScores, allStates);
-        visited.remove(idx);
+        visited = remove(visited, idx);
         if impl.isGoalState(current) then
-          return (gScore[idx[0]], 0.0);
+          return (gScores[idx[0]], path);
         else {
           for neighbor in impl.findNeighbors(current) do {
-            const d = impl.distance(current, neighbor);
-            const tentativeGScore = gScore[idx[0]] + d;
-            var itNeighbor : atomic int(64) = size;
-            forall i in startIdx..size do
-              if allStates[i] == neighbor then
-                itNeighbor = allStates;
-            if itNeighbor == size then
+            const tentativeGScore = gScores[idx[0]] + impl.distance(current, neighbor);
+            var idxNeighbor = (& reduce isNeighbor(startIdx..size, allStates, neighbor));
+            var added = idxNeighbor >= size || tentativeGScore < gScores[idxNeighbor];
+            if idxNeighbor >= size {
+              idxNeighbor = size;
               size += 1;
-            if tentativeGScore < gScore[itNeighbor] {
+              visited.add((idxNeighbor, idxNeighbor));
+              path.push_back(neighbor);
+            } else if tentativeGScore < gScores[idxNeighbor] {
               // This path to neighbor is better than any previous one. Record it!
               //_insertUnique(distance, neighbor);
-              if ! visited.contains((itNeighbor, itNeighbor)) then
-                visited.add((itNeighbor, itNeighbor));
-              on gScore[itNeighbor] {
-                gScore[itNeighbor] = tentativeGScore;
-                // heuristic(neighbor) is the heuristic distance from neighbor to finish
-                const h = impl.heuristic(neighbor);
+              if ! visited.contains((idxNeighbor, idxNeighbor)) then
+                visited.add((idxNeighbor, idxNeighbor));
+              //path.push_back(neighbor);
+            }
 
-                // fScore[neighbor] is the heuristic distance from start to finish.
-                // We know we hare passing through neighbor.
-                const f = tentativeGScore + h;
-                fScore[itNeighbor] = f;
-              }
+            if added {
+              on gScores[idxNeighbor] do
+                gScores[idxNeighbor] = tentativeGScore;
+              // heuristic(neighbor) is the heuristic distance from neighbor to finish
+              // fScore[neighbor] is the heuristic distance from start to finish.
+              // We know we hare passing through neighbor.
+              on  fScores[idxNeighbor] do
+                fScores[idxNeighbor] = tentativeGScore + impl.heuristic(neighbor);
             }
           }
         }
-        /*
-        if impl.isGoalState(current) {
-          var idxG = idx[2];
-          distance = gScore[idxG];
-          return (distance, path);
-        } else {
-            // tentativeGScore is the distance from start to the neighbor through current
-          var accumulatedNeigbors : int;
-          for neighbor in impl.findNeighbors(current) do {
-            accumulatedNeigbors += 1;
-            const j = accumulatedNeigbors;
-            const d = impl.distance(current, neighbor);
-            const tentativeGScore = gScore[it] + d;
-            const itNeighbor = it + j;
-            const isNewState = ! this.D.contains(itNeighbor);
-            if isNewState then
-              this.D.add(itNeighbor);
-            if isNewState || tentativeGScore < gScore[itNeighbor] {
-                // This path to neighbor is better than any previous one. Record it!
-              //_insertUnique(distance, neighbor);
-              on visited do
-                // if neighbor not in openSet then add it.
-                if ! visited.contains(itNeighbor) then
-                  visited.add(itNeighbor);
-              on gScore[itNeighbor] {
-                gScore[itNeighbor] = tentativeGScore;
-
-                // heuristic(neighbor) is the heuristic distance from neighbor to finish
-                const h = impl.heuristic(neighbor);
-
-                // fScore[neighbor] is the heuristic distance from start to finish.
-                // We know we hare passing through neighbor.
-                const f = tentativeGScore + h;
-                fScore[itNeighbor] = f;
-              }
-            }
-          }
-          it += accumulatedNeigbors;
-        }
-
-          */
       }
-
-
-      
-      return solution;
+      return createSolution(distanceToStart, start);
     }
   }
 }
