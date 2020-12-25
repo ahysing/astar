@@ -6,8 +6,7 @@ module AStar {
   private use Search;
   private use PeekPoke;
 
-  type scoreIdxT = int(64);
-  type stateIdxT = int(64);
+  type idxT = int(64);
 
   public class Searcher {
     /* The type of the states contained in this EStar space. */
@@ -30,18 +29,18 @@ module AStar {
       return true;
     }
 
-    proc _pickScoresAndState(idx : (scoreIdxT, stateIdxT), fScores) {
-      return (fScores[idx[0]], idx);
+    proc _pickScoresAndState(idx : idxT, fScores) {
+      return (fScores[idx], idx);
     }
 
-    proc _getElementWithLowestFScore(visited : DistBag((scoreIdxT, stateIdxT)), fScores, allStates) {
+    proc _getElementWithLowestFScore(visited : DistBag(idxT), fScores, allStates) {
       const indicesThenFScores = _pickScoresAndState(visited.these(), fScores);
       const (_, idx) = minloc reduce indicesThenFScores;
-      const element = allStates[idx[1]];
+      const element = allStates[idx];
       return (idx, element);
     }
 
-    proc _removePreviousPushBack(ref path : LinkedList(this.eltType), neighbor : this.eltType) {
+    proc _removePreviousPathPushBack(ref path : LinkedList(this.eltType), neighbor : this.eltType) {
       while path.contains(neighbor) do
         path.remove(neighbor);
       path.push_back(neighbor);
@@ -52,10 +51,10 @@ module AStar {
       return (distanceToStart, path);
     }
 
-    proc _remove(ref visited : DistBag((scoreIdxT, stateIdxT)), value : (scoreIdxT, stateIdxT)) {
-      var next = new DistBag((scoreIdxT, stateIdxT));
+    proc _remove(ref visited : DistBag(idxT), value : idxT) {
+      var next = new DistBag(idxT);
       var ok = true;
-      var element : (scoreIdxT, stateIdxT);
+      var element : idxT;
       do {
         (ok, element) = visited.remove();
         if element != value then
@@ -69,22 +68,15 @@ module AStar {
         A* search function.
       */
     proc aStar(start : this.eltType, distanceToStart : real) : (real, LinkedList(this.eltType)) {      
-      const _low : scoreIdxT = 0;
-      const _high : scoreIdxT = 1 << 24;
-    
+      const _low : idxT = 0;
+      const _high : idxT = 1 << 24;
       const startIdx = _low;
-      const bbox = {_low.._high};
-
-      const ALL : domain(1) dmapped Block(boundingBox=bbox) = bbox;
-
-      const _lowState : stateIdxT = 0;
-      const _highState : stateIdxT = 1 << 24;
-      const bboxStates = {_lowState.._highState};
-      const ALL_STATES : domain(1) dmapped Block(boundingBox=bboxStates) = bboxStates;
+      const bboxScores = {_low.._high};
+      const ALL : domain(1) dmapped Block(boundingBox=bboxScores) = bboxScores;
 
       var fScores : [ALL] real;
       var gScores : [ALL] real = max(real);
-      var size : atomic stateIdxT = 1;
+      var size : atomic idxT = 1;
       // For node n, gScore[n] is the cost of the cheapest path from start to n currently known.
       
       // For node n, fScore[n] = gScore[n] + h(n). fScore[n] represents our current best guess as to
@@ -92,43 +84,52 @@ module AStar {
       fScores[startIdx] = impl.heuristic(start);
       gScores[startIdx] = distanceToStart;
 
-      var allStates : [ALL_STATES] this.eltType;
-      var visited = new DistBag((scoreIdxT, stateIdxT));
-      visited.add((0, 0));
+      var allStates : [ALL] this.eltType;
+      var visited = new DistBag(idxT);
+      visited.add(startIdx);
 
       var path : LinkedList(this.eltType) = makeList(start);
       
       while ! _isEmptySearchSpace(visited) do {
         const (idx, current) = _getElementWithLowestFScore(visited, fScores, allStates);
-        visited = _remove(visited, idx);
         if impl.isGoalState(current) then
-          return (gScores[idx[0]], path);
+          return (gScores[idx], path);
         else {
-          for neighbor in impl.findNeighbors(current) do {
-            const tentativeGScore = gScores[idx[0]] + impl.distance(current, neighbor);
-            var (foundNeighbor, idxNeighbor) = search(allStates, neighbor, sorted = false);
+          visited = _remove(visited, idx);
+          var allNebours = new LinkedList(this.eltType);
+          for neighbor in  impl.findNeighbors(current) do
+            allNebours.push_back(neighbor);
+          for neighbor in allNebours do {
+            const tentativeGScore = gScores[idx] + impl.distance(current, neighbor);
+            const (foundNeighbor, idxNeighbor) = search(allStates, neighbor, sorted = false);
             if ! foundNeighbor {
-              idxNeighbor = size.peek();
+              const nextIdx = size.peek();
+
+              gScores[nextIdx] = tentativeGScore;
+              // heuristic(neighbor) is the heuristic distance from neighbor to finish
+              // fScore[neighbor] is the heuristic distance from start to finish.
+              // We know we hare passing through neighbor.
+              on  fScores[nextIdx] do
+                fScores[nextIdx] = tentativeGScore + impl.heuristic(neighbor);
+           
+              visited.add(nextIdx);
               size.add(1);
-              
-              visited.add((idxNeighbor, idxNeighbor));
               // This path to neighbor is better than any previous one. Record it!
               path.push_back(neighbor);
             } else if tentativeGScore < gScores[idxNeighbor] {
-              if ! visited.contains((idxNeighbor, idxNeighbor)) then
-                visited.add((idxNeighbor, idxNeighbor));
-              // This path to neighbor is better than any previous one. Record it!
-              _removePreviousPushBack(path, neighbor);
-            }
-
-            if foundNeighbor || tentativeGScore < gScores[idxNeighbor] {
-              on gScores[idxNeighbor] do
-                gScores[idxNeighbor] = tentativeGScore;
+              gScores[idxNeighbor] = tentativeGScore;
               // heuristic(neighbor) is the heuristic distance from neighbor to finish
               // fScore[neighbor] is the heuristic distance from start to finish.
               // We know we hare passing through neighbor.
               on  fScores[idxNeighbor] do
                 fScores[idxNeighbor] = tentativeGScore + impl.heuristic(neighbor);
+
+              if ! visited.contains(idxNeighbor) {
+                visited.add(idxNeighbor);
+                size.add(1);
+              }
+              // This path to neighbor is better than any previous one. Record it!
+              _removePreviousPathPushBack(path, neighbor);
             }
           }
         }

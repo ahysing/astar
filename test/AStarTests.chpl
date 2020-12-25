@@ -45,80 +45,80 @@ proc ==(l: Int, r: Int) {
 proc test_remove_inputContainsFirst(test: borrowed Test) throws {
   const impl = new CounterImpl();
   const searcher = new Searcher(Int, impl);
-  var bag = new DistBag(2*int(64));
-  bag.add((0, 0));
-  bag.add((1, 1));
+  var bag = new DistBag(int(64));
+  bag.add(0);
+  bag.add(1);
   
-  var result = searcher._remove(bag, (2, 2));
+  var result = searcher._remove(bag, 2);
 
-  test.assertTrue(result.contains((0, 0)));
+  test.assertTrue(result.contains(0));
 }
 
 proc test_remove_inputContainsSecond(test: borrowed Test) throws {
   const impl = new CounterImpl();
   const searcher = new Searcher(Int, impl);
-  var bag = new DistBag(2*int(64));
-  bag.add((0, 0));
-  bag.add((1, 1));
+  var bag = new DistBag(int(64));
+  bag.add(0);
+  bag.add(1);
   
-  var result = searcher._remove(bag, (2, 2));
+  var result = searcher._remove(bag, 2);
 
-  test.assertTrue(result.contains((1, 1)));
+  test.assertTrue(result.contains(1));
 }
 
 proc test_remove_inputRemainsSameSize(test: borrowed Test) throws {
   const impl = new CounterImpl();
   const searcher = new Searcher(Int, impl);
-  var bag = new DistBag(2*int(64));
-  bag.add((0, 0));
-  bag.add((1, 1));
+  var bag = new DistBag(int(64));
+  bag.add(0);
+  bag.add(1);
   
-  var result = searcher._remove(bag, (2, 2));
+  var result = searcher._remove(bag, 2);
 
-  test.assertTrue(result.contains((0, 0)));
-  test.assertTrue(result.contains((1, 1)));
-  test.assertFalse(result.contains((2, 2)));
+  test.assertTrue(result.contains(0));
+  test.assertTrue(result.contains(1));
+  test.assertFalse(result.contains(2));
 }
 
 
 proc test_remove_resultLacksRemovedElement(test: borrowed Test) throws {
   const impl = new CounterImpl();
   const searcher = new Searcher(Int, impl);
-  var bag = new DistBag(2*int(64));
-  bag.add((0, 0));
-  bag.add((0, 0));
-  bag.add((1, 1));
+  var bag = new DistBag(int(64));
+  bag.add(0);
+  bag.add(0);
+  bag.add(1);
   
-  var result = searcher._remove(bag, (1, 1));
+  var result = searcher._remove(bag, 1);
 
-  test.assertTrue(result.contains((0, 0)));
-  test.assertFalse(result.contains((1, 1)));
+  test.assertTrue(result.contains(0));
+  test.assertFalse(result.contains(1));
 }
 
 proc test__isEmptySearchSpace_inputIsEmpty(test: borrowed Test) throws {
   const impl = new CounterImpl();
   const searcher = new Searcher(Int, impl);
-  var bag = new DistBag(2*int(64));
+  var bag = new DistBag(int(64));
   test.assertTrue(searcher._isEmptySearchSpace(bag));
 }
 
 proc test__isEmptySearchSpace_inputHasOneElement(test: borrowed Test) throws {
   const impl = new CounterImpl();
   const searcher = new Searcher(Int, impl);
-  var bag = new DistBag(2*int(64));
-  bag.add((0, 1));
+  var bag = new DistBag(int(64));
+  bag.add(0);
   test.assertFalse(searcher._isEmptySearchSpace(bag));
 }
 
 proc test__isEmptySearchSpace_inputIsEmptyAgain(test: borrowed Test) throws {
   const impl = new CounterImpl();
   const searcher = new Searcher(Int, impl);
-  var bag = new DistBag(2*int(64));
-  bag.add((0, 1));
+  var bag = new DistBag(int(64));
+  bag.add(0);
   bag.remove();
   test.assertTrue(searcher._isEmptySearchSpace(bag));
 }
-/*
+
 proc test_aStar(test: borrowed Test) throws {
   const impl = new CounterImpl();
   const searcher = new Searcher(Int, impl);
@@ -137,7 +137,6 @@ proc test_aStar_inputIsCountOneToTen_OutputIsDistanceNine(test: borrowed Test) t
   test.assertEqual(9.0, distance);
 }
 
-*/
 proc test__pickScoresAndState(test: borrowed Test) throws {
   const impl = new CounterImpl();
   const searcher = new Searcher(Int, impl);
@@ -148,10 +147,10 @@ proc test__pickScoresAndState(test: borrowed Test) throws {
   fScores[1] = 1.0;
   fScores[2] = max(real);
   
-  var visited = new DistBag(2*int(64));
+  var visited = new DistBag(int(64));
 
-  visited.add((1, 1));
-  visited.add((2, 2));
+  visited.add(1);
+  visited.add(2);
 
   var result = searcher._pickScoresAndState(visited.these(), fScores);
   var counter = 0;
@@ -170,17 +169,17 @@ proc test_getElementWithLowestFScore(test: borrowed Test) throws {
   allStates[0] = new Int(0);
   allStates[1] = new Int(1);
   allStates[2] = new Int(2);
-  var visited = new DistBag(2*int(64));
-  visited.add((0, 0));
-  visited.add((1, 1));
-  visited.add((2, 2));
+  var visited = new DistBag(int(64));
+  visited.add(0);
+  visited.add(1);
+  visited.add(2);
 
 
   const impl = new CounterImpl();
   const searcher = new Searcher(Int, impl);
   
   var result = searcher._getElementWithLowestFScore(visited, fScores, allStates);
-  test.assertEqual((1, 1), result[0]);
+  test.assertEqual(1, result[0]);
   test.assertEqual(1, result[1].value);
 }
 
