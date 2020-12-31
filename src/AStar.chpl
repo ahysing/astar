@@ -171,6 +171,8 @@ module AStar {
           }
           // This path to neighbor is better than any previous one. Record it!
           _pushBackWithLowestGScore(path, nextPotentialPaths);
+          if stateSizeNow % 3 == 0 then
+            openSet.balance();
         }
       }
       return _createSolution(distanceToStart, start);
