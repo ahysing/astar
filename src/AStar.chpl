@@ -10,7 +10,9 @@ module AStar {
     /* The type of the states contained in this EStar space. */
     type eltType;
     const impl : record;
-
+    const _high : idxT = 1 << 8;
+      
+      
     /*
       Initializes an empty Searcher.
       :arg eltType: The type of the states
@@ -89,12 +91,11 @@ module AStar {
       // mark index at negative infinity. gScores for this index will never pass the less than condition in A-star algorithm.
       gScores[stateIdx] = min(real); 
     }
-
-    proc _reverseLinearSearch(const ref allStates, lookingFor, hi : idxT) {
-      const lo : idxT = 0;
-      for d in hi..lo do
-        if allStates[d] == lookingFor then
-          return (true, d);
+    
+    proc _reverseLinearSearch(const ref allStates : [?Dom] this.eltType, lookingFor : this.eltType, hi : idxT) {
+      for i in 0..hi by -1 do
+        if allStates[i] == lookingFor then
+          return (true, i);
       return (false, hi + 1);
     }
 
@@ -103,7 +104,6 @@ module AStar {
     */
     proc aStar(start : this.eltType, distanceToStart : real) : (real, LinkedList(this.eltType)) {      
       param _low : idxT = 0;
-      const _high : idxT = 1 << 24;
       const startIdx = _low;
       const bboxScores = {_low.._high};
       const ALL : domain(1) dmapped Cyclic(startIdx=bboxScores.low) = bboxScores;
@@ -175,7 +175,8 @@ module AStar {
             openSet.balance();
         }
       }
-      return _createSolution(distanceToStart, start);
+
+      return (distanceToStart, path);
     }
   }
 }
