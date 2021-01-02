@@ -19,11 +19,11 @@ record CounterImpl {
   }
 
   proc heuristic(context : Int) {
-    return (10 - context.value);
+    return abs(10 - context.value);
   }
 
   proc distance(a : Int, b : Int) {
-    return a.value - b.value;
+    return abs(a.value - b.value);
   }
 }
 
@@ -144,7 +144,7 @@ proc test_removeStateFromOpenSet_SetsGScoreIndexToMinusInfinity(test: borrowed T
   const impl = new CounterImpl();
   const searcher = new Searcher(Int, impl);
 
-  
+
   searcher._removeStateFromOpenSet(openSet, gScores, idx);
 
 

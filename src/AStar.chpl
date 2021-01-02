@@ -99,6 +99,24 @@ module AStar {
       return (false, hi + 1);
     }
 
+    proc _updateScoresPushPaths(fScores, gScores, allStates, current, neighbor, idxCurrent, idxNeighbor, nextPotentialPaths) {
+      on allStates[idxNeighbor] do
+        allStates[idxNeighbor] = neighbor;
+      on gScores[idxNeighbor] {
+        const tentativeGScore = gScores[idxCurrent] + impl.distance(current, neighbor);
+        if tentativeGScore < gScores[idxNeighbor] {
+          gScores[idxNeighbor] = tentativeGScore;
+          // heuristic(neighbor) is the heuristic distance from neighbor to finish
+          // fScore[neighbor] is the heuristic distance from start to finish.
+          // We know we hare passing through neighbor.
+          on fScores[idxNeighbor] do
+            fScores[idxNeighbor] = tentativeGScore + impl.heuristic(neighbor);
+
+          on nextPotentialPaths do
+            nextPotentialPaths.add((tentativeGScore, neighbor));                    
+        }
+      }
+    }
     /*
       A* search algorithm ( pronounced "A-star search algorithm").
     */
@@ -108,13 +126,13 @@ module AStar {
       const bboxScores = {_low.._high};
       const ALL : domain(1) dmapped Cyclic(startIdx=bboxScores.low) = bboxScores;
 
-      var fScores : [ALL] real;
-      var gScores : [ALL] real = max(real);
-      var size : atomic idxT = 1;
       // For node n, gScore[n] is the cost of the cheapest path from start to n currently known.
       
       // For node n, fScore[n] = gScore[n] + h(n). fScore[n] represents our current best guess as to
       // how short a path from start to finish can be if it goes through n.
+      var fScores : [ALL] real;
+      var gScores : [ALL] real = max(real);
+      var size : atomic idxT = 1;
       fScores[startIdx] = impl.heuristic(start);
       gScores[startIdx] = distanceToStart;
 
@@ -125,52 +143,27 @@ module AStar {
       var path : LinkedList(this.eltType) = makeList(start);
             
       while ! _isEmptySearchSpace(openSet) do {
-        const (idx, current) = _getElementWithLowestFScore(openSet, fScores, allStates);
+        const (idxCurrent, current) = _getElementWithLowestFScore(openSet, fScores, allStates);
+        _removeStateFromOpenSet(openSet, gScores, idxCurrent);
         if impl.isGoalState(current) then
-          return (gScores[idx], path);
-        else {
-          _removeStateFromOpenSet(openSet, gScores, idx);
-          
+          return (gScores[idxCurrent], path);
+        else { 
           var nextPotentialPaths : domain((real, this.eltType));
           const stateSizeNow = size.peek();
-          assert(ALL.contains(stateSizeNow));
           coforall neighbor in impl.findNeighbors(current) do {
-            const (foundNeighbor, idxNeighbor) = _reverseLinearSearch(allStates, neighbor, hi = stateSizeNow - 1);
-            if foundNeighbor {
-              on gScores[idxNeighbor] {
-                const tentativeGScore = gScores[idx] + impl.distance(current, neighbor);
-                if tentativeGScore < gScores[idxNeighbor] {
-                  gScores[idxNeighbor] = tentativeGScore;
-                  // heuristic(neighbor) is the heuristic distance from neighbor to finish
-                  // fScore[neighbor] is the heuristic distance from start to finish.
-                  // We know we hare passing through neighbor.
-                  fScores[idxNeighbor] = tentativeGScore + impl.heuristic(neighbor);
-
-                  nextPotentialPaths.add((tentativeGScore, neighbor));
-                  if ! openSet.contains(idxNeighbor) {
-                    openSet.add(idxNeighbor);
-                  }
-                }
-              }
-            } else if ! foundNeighbor {
-              const nextIdx = stateSizeNow;
-              on gScores[nextIdx] {
-                const tentativeGScore = gScores[idx] + impl.distance(current, neighbor);
-
-                gScores[nextIdx] = tentativeGScore;
-                // heuristic(neighbor) is the heuristic distance from neighbor to finish
-                // fScore[neighbor] is the heuristic distance from start to finish.
-                // We know we hare passing through neighbor.
-                fScores[nextIdx] = tentativeGScore + impl.heuristic(neighbor);
-            
-                nextPotentialPaths.add((tentativeGScore, neighbor));
-                openSet.add(nextIdx);
-                size.add(1);
-              }
+            var foundNeighbor : bool;
+            var idxNeighbor : idxT;
+            (foundNeighbor, idxNeighbor) = _reverseLinearSearch(allStates, neighbor, hi = stateSizeNow - 1);
+            if ! foundNeighbor {
+              idxNeighbor = stateSizeNow;
+              size.add(1);
+              assert(ALL.contains(idxNeighbor));
             }
+            _updateScoresPushPaths(fScores, gScores, allStates, current, neighbor, idxCurrent, idxNeighbor, nextPotentialPaths);
+            if ! openSet.contains(idxNeighbor) then
+              openSet.add(idxNeighbor);
           }
-          // This path to neighbor is better than any previous one. Record it!
-          _pushBackWithLowestGScore(path, nextPotentialPaths);
+          _pushBackWithLowestGScore(path, nextPotentialPaths);          
           if stateSizeNow % 3 == 0 then
             openSet.balance();
         }
