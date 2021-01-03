@@ -3,7 +3,7 @@ use AStar;
 use DistributedBag;
 use LinkedLists;
 
-private use BlockDist;
+private use CyclicDist;
 record Impl {
   proc init() { }
 }
@@ -227,11 +227,11 @@ proc test_aStar_inputIsCountOneToTen_OutputIsDistanceNine(test: borrowed Test) t
   test.assertEqual(9.0, distance);
 }
 */
-proc test__pickScoresAndState(test: borrowed Test) throws {
+proc test__pickScoresAndStateOnLocale(test: borrowed Test) throws {
   const impl = new CounterImpl();
   const searcher = new Searcher(Int, impl);
   
-  var D : domain(1) dmapped Block(boundingBox={0..2}) = {0..2};
+  var D : domain(1) dmapped Cyclic(startIdx=0) = {0..2};
   var fScores : [D] real;
   fScores[0] = max(real);
   fScores[1] = 1.0;
@@ -242,15 +242,15 @@ proc test__pickScoresAndState(test: borrowed Test) throws {
   visited.add(1);
   visited.add(2);
 
-  var result = searcher._pickScoresAndState(visited.these(), fScores);
+  var result = searcher._pickScoresAndStateOnLocale(visited, fScores, here);
   var counter = 0;
   for r in result do
     counter += 1;
   test.assertEqual(2, counter);
 }
 
-proc test_getElementWithLowestFScore(test: borrowed Test) throws {
-  var D : domain(1) dmapped Block(boundingBox={0..2}) = {0..2};
+proc test_getIndexWithLowestFScore(test: borrowed Test) throws {
+  var D : domain(1) dmapped Cyclic(startIdx=0) = {0..2};
   var fScores : [D] real;
   fScores[0] = max(real);
   fScores[1] = 1.0;
@@ -268,12 +268,10 @@ proc test_getElementWithLowestFScore(test: borrowed Test) throws {
   const searcher = new Searcher(Int, impl);
 
 
-  var result = searcher._getElementWithLowestFScore(visited, fScores, allStates);
+  var result = searcher._getIndexWithLowestFScore(visited, fScores, here);
 
   const expectedIdx = 1;
-  test.assertEqual(expectedIdx, result[0]);
-  const expectedValue = 11;
-  test.assertEqual(expectedValue, result[1].value);
+  test.assertEqual(expectedIdx, result[1]);
 }
 
 proc test_reverseLinearSearch_InputIsZeroOne(test: borrowed Test) throws {
@@ -315,20 +313,6 @@ proc test_reverseLinearSearch_inputIsOusideOfRange(test: borrowed Test) throws {
   var (found, idx) = searcher._reverseLinearSearch(allStates, lookingFor, high);
 
   test.assertFalse(found);
-}
-
-proc test__pushBackWithLowestGScore(test: borrowed Test) throws {
-  var path = new LinkedList(int);
-  const impl = new CounterImpl();
-  const searcher = new Searcher(int, impl);
-
-  const foo = 0;
-  const bar = 42;
-  var nextPotentialPaths : domain((real, int)) = { (200.0, foo), (1.0, bar), (1000.0, foo) };
-  searcher._pushBackWithLowestGScore(path, nextPotentialPaths);
-
-  test.assertEqual(1, path.size);
-  test.assertEqual(42, path.pop_front());
 }
 
 UnitTest.main();

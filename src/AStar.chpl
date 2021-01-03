@@ -1,21 +1,24 @@
 /* Documentation for AStar */
 module AStar {
   use LinkedLists;
+  private use ReplicatedVar;
   private use CyclicDist;
   private use DistributedBag;
   private use PeekPoke;
+  private use Search;
+
   type idxT = int(64);
 
   public class Searcher {
-    /* The type of the states contained in this EStar space. */
     type eltType;
     const impl : record;
-    const _high : idxT = 1 << 8;
-      
+    param _high : idxT = 1 << 8;
+    param _low : idxT = 0;
+    param startIdx = _low;
       
     /*
       Initializes an empty Searcher.
-      :arg eltType: The type of the states
+      :arg eltType: The type of states for the A* algorithm search space.
       :arg impl: the problem defined as a record. has distance, heuristic, findNeighbors, isGoalState functions
     */
     proc init(type eltType, impl : record) {
@@ -34,37 +37,20 @@ module AStar {
       return true;
     }
 
-    proc _pickScoresAndState(idx : idxT, const ref fScores) {
-      return (fScores[idx], idx);
+    iter _pickScoresAndStateOnLocale(const ref openSet : DistBag(idxT), const ref fScores, loc : locale) {
+      for idx in openSet.these() do
+        if fScores[idx].locale.id == loc.id then
+          yield (fScores[idx], idx);
     }
 
-    proc _getElementWithLowestFScore(const ref openSet : DistBag(idxT), fScores, allStates) {
-      const indicesThenFScores = _pickScoresAndState(openSet.these(), fScores);
-      const (_, idx) = minloc reduce indicesThenFScores;
-      const element = allStates[idx];
-      return (idx, element);
-    }
-
-    proc _pushBackWithLowestGScore(ref path : LinkedList(this.eltType), nextPotentialPaths : domain((real, this.eltType))) {
-      if nextPotentialPaths.size != 0 {
-        var nextPath : this.eltType;
-        var minGScore = max(real);
-        for (potensialGScore, potensialPath) in nextPotentialPaths {
-          if potensialGScore <= minGScore {
-            minGScore = potensialGScore;
-            nextPath = potensialPath;
-          }
-        }
-        
-        while path.contains(nextPath) do
-          path.remove(nextPath);
-        path.push_back(nextPath);
+    proc _getIndexWithLowestFScore(const ref openSet : DistBag(idxT), fScores, loc : locale) {
+      const indicesThenFScores = _pickScoresAndStateOnLocale(openSet, fScores, loc);
+      for value in indicesThenFScores {
+        const (fScore, idxCurrent) = minloc reduce indicesThenFScores;
+        return (true, idxCurrent);
       }
-    }
- 
-    proc _createSolution(distanceToStart : real, start : this.eltType) {
-      var solutionPath : LinkedList(this.eltType) = makeList(start);
-      return (distanceToStart, solutionPath);
+      const defaultIdx : idxT;
+      return (false, defaultIdx);
     }
 
     proc _remove(ref openSet : DistBag(idxT), stateIdx : idxT) {
@@ -99,35 +85,102 @@ module AStar {
       return (false, hi + 1);
     }
 
-    proc _updateScoresPushPaths(fScores, gScores, allStates, current, neighbor, idxCurrent, idxNeighbor, nextPotentialPaths) {
-      on allStates[idxNeighbor] do
-        allStates[idxNeighbor] = neighbor;
-      on gScores[idxNeighbor] {
-        const tentativeGScore = gScores[idxCurrent] + impl.distance(current, neighbor);
-        if tentativeGScore < gScores[idxNeighbor] {
-          gScores[idxNeighbor] = tentativeGScore;
-          // heuristic(neighbor) is the heuristic distance from neighbor to finish
-          // fScore[neighbor] is the heuristic distance from start to finish.
-          // We know we hare passing through neighbor.
-          on fScores[idxNeighbor] do
-            fScores[idxNeighbor] = tentativeGScore + impl.heuristic(neighbor);
-
-          on nextPotentialPaths do
-            nextPotentialPaths.add((tentativeGScore, neighbor));                    
-        }
+    proc _aquireIdxNeigbor(ref size : atomic idxT, const ref allStates : [?Dom] this.eltType, neighbor : this.eltType) {
+      var foundOrAquired : bool;
+      var idxNeighbor, observedSize, lastObservedIdx : idxT;
+      const initialSize = size.read();
+      const initialLastIdx = initialSize - 1;
+      (foundOrAquired, idxNeighbor) = _reverseLinearSearch(allStates, neighbor, hi = initialLastIdx);
+      if foundOrAquired {
+        return idxNeighbor;
+      } else {
+        observedSize = initialSize;
+        do {
+          const next = observedSize + 1;
+          foundOrAquired = size.compareAndSwap(observedSize, next);
+          observedSize = size.read();
+        } while ! foundOrAquired;
+        const lastIdx = observedSize - 1;
+        (foundOrAquired, idxNeighbor) = search(allStates, neighbor, lo = initialLastIdx, hi = lastIdx, sorted = false);
+        if foundOrAquired then
+          return idxNeighbor;
+        else
+          return lastIdx;
       }
     }
-    /*
-      A* search algorithm ( pronounced "A-star search algorithm").
+
+    proc _aggregateIsGoalStateAcrossNodes(hasFinished : [rcDomain] bool) {
+      var hasReachedGoalAcrossAllLocales : [LocaleSpace] bool;
+      rcCollect(hasFinished, hasReachedGoalAcrossAllLocales);
+      return (|| reduce hasReachedGoalAcrossAllLocales);
+    }
+
+    proc _aggregateLowestStepAndDistanceAcrossNodes(distanceAndNextStep : [rcDomain] (real, this.eltType)) {
+      var gScoresAndNextPathsAcrossAllLocales : [LocaleSpace] (real, this.eltType);
+      rcCollect(distanceAndNextStep, gScoresAndNextPathsAcrossAllLocales);
+      
+      var lowestDistance = max(real);
+      var lowestNextStep : this.eltType;
+      for (distance, nextStep) in gScoresAndNextPathsAcrossAllLocales do
+        if distance < lowestDistance then
+          (lowestDistance, lowestNextStep) = (distance, nextStep);
+      return (lowestDistance, lowestNextStep);
+    }
+
+    proc _aggregateNextStepAcrossNodes(distanceAndNextStep : [rcDomain] (real, this.eltType)) {
+      const (gScore, nextStep) = _aggregateLowestStepAndDistanceAcrossNodes(distanceAndNextStep);
+      return nextStep;
+    }
+
+    proc _aggregateLowestDistanceAcrossNodes(distanceAndNextStep : [rcDomain] (real, this.eltType)) {
+      const (gScore, nextStep) = _aggregateLowestStepAndDistanceAcrossNodes(distanceAndNextStep);
+      return gScore;
+    }
+
+    proc _fillHasFinished(hasFinished : [rcDomain] bool) {
+      rcReplicate(hasFinished, false); 
+    }
+    
+    proc _fillDistanceAndNextStep(distanceAndNextStep : [rcDomain] (real, this.eltType)) {
+      const defaultForType : this.eltType;
+      rcReplicate(distanceAndNextStep, (max(real), defaultForType));
+    }
+
+    proc _flagFinish(hasFinished : [rcDomain] bool, distanceAndNextStep : [rcDomain] (real, this.eltType), gScores, idxCurrent : idxT, current : this.eltType) {
+      rcLocal(hasFinished) = true;
+      rcLocal(distanceAndNextStep)[0] = gScores[idxCurrent];
+      rcLocal(distanceAndNextStep)[1] = current;
+    }
+
+    proc _findNextStepByLowestDistance(lowestNextSteps : DistBag((real, this.eltType))) {
+      var lowestDistance = max(real);
+      var lowestStepFinal : this.eltType;
+      for (tentativeGScore, at) in lowestNextSteps.these() do
+        if tentativeGScore < lowestDistance then
+          (lowestDistance, lowestStepFinal) = (tentativeGScore, at);
+      return (lowestDistance, lowestStepFinal);          
+    }
+
+    proc _createBag(loc : locale) {
+      const myLocaleSpace : domain(1) = {0..1};
+      const myLocales: [myLocaleSpace] locale = loc;
+      var lowestNextSteps = new DistBag((real, this.eltType), targetLocales = myLocales);
+      return lowestNextSteps;
+    }
+
+     /*
+      A* search algorithm (pronounced "A-star search algorithm").
+      :arg start: The starting position, or state, in the A* algorithm search space.
+      :type start: `eltType`
+      :arg distanceToStart: The initial distance traveled to `start`. Usually zero. If some distance was spent before getting to `start`, then this value would be greater than zero.
+      :type distanceToStart: `real`
+      :returns: A tuple indicating (1) the distance traveled from start to goal and (2) an ordered list of states traveled through from start to goal.
+      :rtype: (`real`, `LinkedList(eltType)`)
     */
     proc aStar(start : this.eltType, distanceToStart : real) : (real, LinkedList(this.eltType)) {      
-      param _low : idxT = 0;
-      const startIdx = _low;
       const bboxScores = {_low.._high};
       const ALL : domain(1) dmapped Cyclic(startIdx=bboxScores.low) = bboxScores;
-
       // For node n, gScore[n] is the cost of the cheapest path from start to n currently known.
-      
       // For node n, fScore[n] = gScore[n] + h(n). fScore[n] represents our current best guess as to
       // how short a path from start to finish can be if it goes through n.
       var fScores : [ALL] real;
@@ -135,38 +188,69 @@ module AStar {
       var size : atomic idxT = 1;
       fScores[startIdx] = impl.heuristic(start);
       gScores[startIdx] = distanceToStart;
-
+      // allStates contains all the neighbors observed. The array is unordered.
+      // New values are added at the end according to the current value of `size`.
       var allStates : [ALL] this.eltType;
+      allStates[startIdx] = start;
+      // openSet contains indices to the states we are currently exploring. These indices can look up in
+      // `fScores`, `gScores` and `allStates`.
       var openSet = new DistBag(idxT);
       openSet.add(startIdx);
-
+      // The states we traveled to to get to the end. States are ordered from start to goal state.
       var path : LinkedList(this.eltType) = makeList(start);
-            
+      // hasFinished contains a flag indicating if any of the .ocales has found any finishing state
+      var hasFinished : [rcDomain] bool;
+      _fillHasFinished(hasFinished);
+      // distanceAndNextStep contains the smallest distance traveled to the best state explored on the locale
+      // during the current iteration
+      var distanceAndNextStep : [rcDomain] (real, this.eltType);     
+      
+      
+      
       while ! _isEmptySearchSpace(openSet) do {
-        const (idxCurrent, current) = _getElementWithLowestFScore(openSet, fScores, allStates);
-        _removeStateFromOpenSet(openSet, gScores, idxCurrent);
-        if impl.isGoalState(current) then
-          return (gScores[idxCurrent], path);
-        else { 
-          var nextPotentialPaths : domain((real, this.eltType));
-          const stateSizeNow = size.peek();
-          coforall neighbor in impl.findNeighbors(current) do {
-            var foundNeighbor : bool;
-            var idxNeighbor : idxT;
-            (foundNeighbor, idxNeighbor) = _reverseLinearSearch(allStates, neighbor, hi = stateSizeNow - 1);
-            if ! foundNeighbor {
-              idxNeighbor = stateSizeNow;
-              size.add(1);
-              assert(ALL.contains(idxNeighbor));
+        _fillDistanceAndNextStep(distanceAndNextStep);
+        for loc in Locales {
+          on loc {
+            const (hasValueInThisLocale, idxCurrent) = _getIndexWithLowestFScore(openSet, fScores, loc);
+            if hasValueInThisLocale {
+              _removeStateFromOpenSet(openSet, gScores, idxCurrent);
+
+              const current = allStates[idxCurrent];
+              if impl.isGoalState(current) then
+                _flagFinish(hasFinished, distanceAndNextStep, gScores, idxCurrent, current);
+              else {
+                var lowestNextSteps = _createBag(loc);
+                coforall neighbor in impl.findNeighbors(current) do {
+                  const idxNeighbor = _aquireIdxNeigbor(size, allStates, neighbor);
+                  const tentativeGScore = gScores[idxCurrent] + impl.distance(current, neighbor);
+                  on gScores[idxNeighbor] {
+                    allStates[idxNeighbor] = neighbor;
+                    // heuristic(neighbor) is the heuristic distance from neighbor to finish
+                    // fScore[neighbor] is the heuristic distance from start to finish.
+                    // We know we hare passing through neighbor.
+                    fScores[idxNeighbor] = tentativeGScore + impl.heuristic(neighbor);
+                    if tentativeGScore < gScores[idxNeighbor] then
+                      gScores[idxNeighbor] = tentativeGScore;                   
+                  }
+
+                  if ! openSet.contains(idxNeighbor) then
+                    openSet.add(idxNeighbor);
+
+                  lowestNextSteps.add((tentativeGScore, current));
+                }
+                const (lowestDistance, lowestStepFinal) = _findNextStepByLowestDistance(lowestNextSteps);
+                rcLocal(distanceAndNextStep)[0] = lowestDistance;
+                rcLocal(distanceAndNextStep)[1] = lowestStepFinal;
+              }
             }
-            _updateScoresPushPaths(fScores, gScores, allStates, current, neighbor, idxCurrent, idxNeighbor, nextPotentialPaths);
-            if ! openSet.contains(idxNeighbor) then
-              openSet.add(idxNeighbor);
           }
-          _pushBackWithLowestGScore(path, nextPotentialPaths);          
-          if stateSizeNow % 3 == 0 then
-            openSet.balance();
         }
+
+        if _aggregateIsGoalStateAcrossNodes(hasFinished) then
+          return (_aggregateLowestDistanceAcrossNodes(distanceAndNextStep), path);
+        
+        path.push_back(_aggregateNextStepAcrossNodes(distanceAndNextStep));
+        openSet.balance();
       }
 
       return (distanceToStart, path);
