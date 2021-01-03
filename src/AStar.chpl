@@ -85,7 +85,21 @@ module AStar {
       return (false, hi + 1);
     }
 
-    proc _aquireIdxNeigbor(ref size : atomic idxT, const ref allStates : [?Dom] this.eltType, neighbor : this.eltType) {
+    proc _aquireNewLastIndex(ref size : atomic idxT, inObservedSize : idxT) {
+      var observedSize = inObservedSize;
+      var foundOrAquired : bool;
+      do {
+        const next = observedSize + 1;
+        foundOrAquired = size.compareAndSwap(observedSize, next);
+        observedSize = size.read();
+      } while ! foundOrAquired;
+      const lastIdx = observedSize - 1;
+      return lastIdx;  
+    }
+
+    proc _aquireIdxToNewNeigbor(ref size : atomic idxT, const ref allStates : [?Dom] this.eltType, neighbor : this.eltType) {
+      // Currently, unless using network atomics, all remote atomic operations will result in the calling task effectively migrating to the locale on which the atomic variable was allocated and performing the atomic operations locally.
+      // https://chapel-lang.org/docs/technotes/atomics.html
       var foundOrAquired : bool;
       var idxNeighbor, observedSize, lastObservedIdx : idxT;
       const initialSize = size.read();
@@ -94,13 +108,7 @@ module AStar {
       if foundOrAquired {
         return idxNeighbor;
       } else {
-        observedSize = initialSize;
-        do {
-          const next = observedSize + 1;
-          foundOrAquired = size.compareAndSwap(observedSize, next);
-          observedSize = size.read();
-        } while ! foundOrAquired;
-        const lastIdx = observedSize - 1;
+        const lastIdx = _aquireNewLastIndex(size, initialSize);
         (foundOrAquired, idxNeighbor) = search(allStates, neighbor, lo = initialLastIdx, hi = lastIdx, sorted = false);
         if foundOrAquired then
           return idxNeighbor;
@@ -221,7 +229,7 @@ module AStar {
               else {
                 var lowestNextSteps = _createBag(loc);
                 coforall neighbor in impl.findNeighbors(current) do {
-                  const idxNeighbor = _aquireIdxNeigbor(size, allStates, neighbor);
+                  const idxNeighbor = _aquireIdxToNewNeigbor(size, allStates, neighbor);
                   const tentativeGScore = gScores[idxCurrent] + impl.distance(current, neighbor);
                   on gScores[idxNeighbor] {
                     allStates[idxNeighbor] = neighbor;
