@@ -123,25 +123,27 @@ module AStar {
       return (|| reduce hasReachedGoalAcrossAllLocales);
     }
 
-    proc _aggregateLowestStepAndDistanceAcrossNodes(distanceAndNextStep : [rcDomain] (real, this.eltType)) {
-      var gScoresAndNextPathsAcrossAllLocales : [LocaleSpace] (real, this.eltType);
+    proc _aggregateLowestStepAndDistanceAcrossNodes(distanceAndNextStep : [rcDomain] (real, idxT)) {
+      var gScoresAndNextPathsAcrossAllLocales : [LocaleSpace] (real, idxT);
       rcCollect(distanceAndNextStep, gScoresAndNextPathsAcrossAllLocales);
-      
       var lowestDistance = max(real);
-      var lowestNextStep : this.eltType;
-      for (distance, nextStep) in gScoresAndNextPathsAcrossAllLocales do
-        if distance < lowestDistance then
-          (lowestDistance, lowestNextStep) = (distance, nextStep);
-      return (lowestDistance, lowestNextStep);
+      var lowestIndex = min(idxT);
+      for (distance, nextStepIndex) in gScoresAndNextPathsAcrossAllLocales {
+        if distance < lowestDistance {
+          lowestDistance = distance;
+          lowestIndex = nextStepIndex;
+        }
+      }
+      return (lowestDistance, lowestIndex);
     }
 
-    proc _aggregateNextStepAcrossNodes(distanceAndNextStep : [rcDomain] (real, this.eltType)) {
-      const (gScore, nextStep) = _aggregateLowestStepAndDistanceAcrossNodes(distanceAndNextStep);
-      return nextStep;
+    proc _aggregateNextStepAcrossNodes(distanceAndNextStep : [rcDomain] (real, idxT), const ref allStates : [?Dom] this.eltType) {
+      const (gScore, nextStepIdx) = _aggregateLowestStepAndDistanceAcrossNodes(distanceAndNextStep);
+      return allStates[nextStepIdx];
     }
 
-    proc _aggregateLowestDistanceAcrossNodes(distanceAndNextStep : [rcDomain] (real, this.eltType)) {
-      const (gScore, nextStep) = _aggregateLowestStepAndDistanceAcrossNodes(distanceAndNextStep);
+    proc _aggregateLowestDistanceAcrossNodes(distanceAndNextStep : [rcDomain] (real, idxT)) {
+      const (gScore, nextStepIdx) = _aggregateLowestStepAndDistanceAcrossNodes(distanceAndNextStep);
       return gScore;
     }
 
@@ -149,20 +151,20 @@ module AStar {
       rcReplicate(hasFinished, false); 
     }
     
-    proc _fillDistanceAndNextStep(distanceAndNextStep : [rcDomain] (real, this.eltType)) {
-      const defaultForType : this.eltType;
+    proc _fillDistanceAndNextStep(distanceAndNextStep : [rcDomain] (real, idxT)) {
+      const defaultForType : idxT;
       rcReplicate(distanceAndNextStep, (max(real), defaultForType));
     }
 
-    proc _flagFinish(hasFinished : [rcDomain] bool, distanceAndNextStep : [rcDomain] (real, this.eltType), gScores, idxCurrent : idxT, current : this.eltType) {
+    proc _flagFinish(hasFinished : [rcDomain] bool, distanceAndNextStep : [rcDomain] (real, idxT), gScores, idxCurrent : idxT) {
       rcLocal(hasFinished) = true;
       rcLocal(distanceAndNextStep)[0] = gScores[idxCurrent];
-      rcLocal(distanceAndNextStep)[1] = current;
+      rcLocal(distanceAndNextStep)[1] = idxCurrent;
     }
 
-    proc _findNextStepByLowestDistance(lowestNextSteps : DistBag((real, this.eltType))) {
+    proc _findNextStepByLowestDistance(lowestNextSteps : DistBag((real, idxT))) {
       var lowestDistance = max(real);
-      var lowestStepFinal : this.eltType;
+      var lowestStepFinal : idxT;
       for (tentativeGScore, at) in lowestNextSteps.these() do
         if tentativeGScore < lowestDistance then
           (lowestDistance, lowestStepFinal) = (tentativeGScore, at);
@@ -172,8 +174,7 @@ module AStar {
     proc _createBag(loc : locale) {
       const myLocaleSpace : domain(1) = {0..1};
       const myLocales: [myLocaleSpace] locale = loc;
-      var lowestNextSteps = new DistBag((real, this.eltType), targetLocales = myLocales);
-      return lowestNextSteps;
+      return new DistBag((real, idxT), targetLocales = myLocales);
     }
 
      /*
@@ -185,7 +186,7 @@ module AStar {
       :returns: A tuple indicating (1) the distance traveled from start to goal and (2) an ordered list of states traveled through from start to goal.
       :rtype: (`real`, `LinkedList(eltType)`)
     */
-    proc aStar(start : this.eltType, distanceToStart : real) : (real, LinkedList(this.eltType)) {      
+    proc aStar(ref start : this.eltType, distanceToStart : real) : (real, LinkedList(this.eltType)) {      
       const bboxScores = {_low.._high};
       const ALL : domain(1) dmapped Cyclic(startIdx=bboxScores.low) = bboxScores;
       // For node n, gScore[n] is the cost of the cheapest path from start to n currently known.
@@ -204,14 +205,16 @@ module AStar {
       // `fScores`, `gScores` and `allStates`.
       var openSet = new DistBag(idxT);
       openSet.add(startIdx);
+      var now = start;
       // The states we traveled to to get to the end. States are ordered from start to goal state.
-      var path : LinkedList(this.eltType) = makeList(start);
+      var path : LinkedList(this.eltType);
+      path.append(now);
       // hasFinished contains a flag indicating if any of the .ocales has found any finishing state
       var hasFinished : [rcDomain] bool;
       _fillHasFinished(hasFinished);
       // distanceAndNextStep contains the smallest distance traveled to the best state explored on the locale
       // during the current iteration
-      var distanceAndNextStep : [rcDomain] (real, this.eltType);     
+      var distanceAndNextStep : [rcDomain] (real, idxT);     
       
       
       
@@ -225,7 +228,7 @@ module AStar {
 
               const current = allStates[idxCurrent];
               if impl.isGoalState(current) then
-                _flagFinish(hasFinished, distanceAndNextStep, gScores, idxCurrent, current);
+                _flagFinish(hasFinished, distanceAndNextStep, gScores, idxCurrent);
               else {
                 var lowestNextSteps = _createBag(loc);
                 coforall neighbor in impl.findNeighbors(current) do {
@@ -244,7 +247,7 @@ module AStar {
                   if ! openSet.contains(idxNeighbor) then
                     openSet.add(idxNeighbor);
 
-                  lowestNextSteps.add((tentativeGScore, current));
+                  lowestNextSteps.add((tentativeGScore, idxNeighbor));
                 }
                 const (lowestDistance, lowestStepFinal) = _findNextStepByLowestDistance(lowestNextSteps);
                 rcLocal(distanceAndNextStep)[0] = lowestDistance;
@@ -255,13 +258,33 @@ module AStar {
         }
 
         if _aggregateIsGoalStateAcrossNodes(hasFinished) then
-          return (_aggregateLowestDistanceAcrossNodes(distanceAndNextStep), path);
-        
-        path.push_back(_aggregateNextStepAcrossNodes(distanceAndNextStep));
+          return (_aggregateLowestDistanceAcrossNodes(distanceAndNextStep), path);        
+        path.append(_aggregateNextStepAcrossNodes(distanceAndNextStep, allStates));
         openSet.balance();
       }
 
       return (distanceToStart, path);
     }
+  }
+
+
+  private use ConnectFour;
+  private use GameContext;
+  private use State;
+  private use Player;
+  proc main() {
+    writeln("Started");
+    writeln("This program is running on ", numLocales, " locales");
+    const connectFour = new ConnectFour(5);
+    const board : [DLocal] Tile;
+    var gameContext = new GameContext(board, player=Player.Red);
+    param g = 0.0;
+    var searcher = new Searcher(gameContext.type, connectFour);
+    var solution = searcher.aStar(gameContext, g);
+  
+    writeln("distance", solution[0]);
+    for state in solution[1] do
+      writeln("State", state);
+    writeln("Finished");
   }
 }
