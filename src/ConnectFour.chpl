@@ -1,13 +1,17 @@
-use List;
 use AStar only Searcher;
+use GameContext;
+use List;
 use Player;
-use State only State, Tile;
-private use GameContext;
+use Tile;
 
 record ConnectFour {
   var depth : int;
   proc init(depth) {
     this.depth = depth;
+  }
+
+  proc init=(other : ConnectFour) {
+    this.depth = other.depth;
   }
 
   proc isGoalState(context : GameContext) {
@@ -50,7 +54,7 @@ record ConnectFour {
     var nextBoard = context.board;
     nextBoard[placeAt] = placeTile(context.player);
     const nextPlayer = findNextPlayer(context.player);
-    const nextState = new GameContext(player=nextPlayer, board=nextBoard);
+    const nextState = new shared GameContext(player=nextPlayer, board=nextBoard);
     return nextState;
   }
 
@@ -226,10 +230,10 @@ record ConnectFour {
     const opponent = new GameContext(board=context.board, player=opponentP);
     const numThreesOpponent = countWindows(opponent, 3);
     const numFoursOpponent = countWindows(opponent, 4);
-    return numThrees - (100 * numThreesOpponent) - (10000 * numFoursOpponent) + (1000000 * numFours);
+    return -numThrees + (100 * numThreesOpponent) + (10000 * numFoursOpponent) - (1000000 * numFours);
   }
 
-  proc distance(a : State, b : State) {
+  proc distance(a : GameContext, b : GameContext) {
     var distance = 0;
     for idx in a.board.domain do
       if a.board[idx] != b.board[idx] then

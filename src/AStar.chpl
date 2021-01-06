@@ -177,6 +177,16 @@ module AStar {
       return new DistBag((real, idxT), targetLocales = myLocales);
     }
 
+    proc _createAllStates(ALL, ref defaultForType : this.eltType) {
+      if isClass(this.eltType) {
+        var allStates : [ALL] this.eltType = defaultForType;
+        return allStates;
+      } else {
+        var allStates : [ALL] this.eltType;
+        return allStates;
+      }
+    }
+
      /*
       A* search algorithm (pronounced "A-star search algorithm").
       :arg start: The starting position, or state, in the A* algorithm search space.
@@ -186,7 +196,7 @@ module AStar {
       :returns: A tuple indicating (1) the distance traveled from start to goal and (2) an ordered list of states traveled through from start to goal.
       :rtype: (`real`, `LinkedList(eltType)`)
     */
-    proc aStar(ref start : this.eltType, distanceToStart : real) : (real, LinkedList(this.eltType)) {      
+    proc aStar(ref start : this.eltType, ref defaultForType : this.eltType, distanceToStart : real) : (real, LinkedList(this.eltType)) {      
       const bboxScores = {_low.._high};
       const ALL : domain(1) dmapped Cyclic(startIdx=bboxScores.low) = bboxScores;
       // For node n, gScore[n] is the cost of the cheapest path from start to n currently known.
@@ -199,16 +209,15 @@ module AStar {
       gScores[startIdx] = distanceToStart;
       // allStates contains all the neighbors observed. The array is unordered.
       // New values are added at the end according to the current value of `size`.
-      var allStates : [ALL] this.eltType;
+      var allStates = _createAllStates(ALL, defaultForType);
       allStates[startIdx] = start;
       // openSet contains indices to the states we are currently exploring. These indices can look up in
       // `fScores`, `gScores` and `allStates`.
       var openSet = new DistBag(idxT);
       openSet.add(startIdx);
-      var now = start;
       // The states we traveled to to get to the end. States are ordered from start to goal state.
       var path : LinkedList(this.eltType);
-      path.append(now);
+      path = makeList(start);
       // hasFinished contains a flag indicating if any of the .ocales has found any finishing state
       var hasFinished : [rcDomain] bool;
       _fillHasFinished(hasFinished);
@@ -270,17 +279,19 @@ module AStar {
 
   private use ConnectFour;
   private use GameContext;
-  private use State;
   private use Player;
+  private use Tile;
   proc main() {
     writeln("Started");
     writeln("This program is running on ", numLocales, " locales");
     const connectFour = new ConnectFour(5);
-    const board : [DLocal] Tile;
-    var gameContext = new GameContext(board, player=Player.Red);
+    const board : [BoardDom] Tile;
+    var gameContext = new shared GameContext(board, player=Player.Red);
+    var defaultGameContext = new shared GameContext();
+    var p = makeList(gameContext);
     param g = 0.0;
     var searcher = new Searcher(gameContext.type, connectFour);
-    var solution = searcher.aStar(gameContext, g);
+    var solution = searcher.aStar(gameContext, defaultGameContext, g);
   
     writeln("distance", solution[0]);
     for state in solution[1] do

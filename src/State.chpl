@@ -2,20 +2,14 @@ use Tile;
 
 const numRows : int = 6;
 const numColumns : int = 7;
-const DLocal : domain(2) = {0..numRows, 0..numColumns};
-
-public enum Tile {
-  Unset,
-  Red,
-  Yellow
-}
+const StateDom : domain(2) = {0..numRows, 0..numColumns};
 
 record State {
-  var board : [DLocal] Tile;
+  var board : [StateDom] Tile;
 
   proc init() { }
 
-  proc init(board : [DLocal] Tile) {
+  proc init(board : [StateDom] Tile) {
     this.board = board;
   }
 }

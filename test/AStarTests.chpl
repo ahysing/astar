@@ -1,9 +1,9 @@
 use UnitTest;
 use AStar;
-use DistributedBag;
-use LinkedLists;
-
+private use DistributedBag;
+private use LinkedLists;
 private use CyclicDist;
+
 record Impl {
   proc init() { }
 }
@@ -58,7 +58,6 @@ proc test_Int_NotEquals(test: borrowed Test) throws {
   test.assertNotEqual(one, two);
 }
 
-
 proc test_CounterImpl_FindNeigbors(test: borrowed Test) throws {
   const impl = new CounterImpl();
   const one = new Int(1);
@@ -79,9 +78,6 @@ proc test_CounterImpl_IsGoalState(test: borrowed Test) throws {
   const eleven = new Int(11);
   test.assertFalse(impl.isGoalState(eleven));
 }
-
-
-
 
 proc test_remove_inputContainsFirst(test: borrowed Test) throws {
   const impl = new CounterImpl();
@@ -120,7 +116,6 @@ proc test_remove_inputRemainsSameSize(test: borrowed Test) throws {
   test.assertTrue(bag.contains(1));
   test.assertFalse(bag.contains(2));
 }
-
 
 proc test_remove_resultLacksRemovedElement(test: borrowed Test) throws {
   const impl = new CounterImpl();
@@ -179,6 +174,7 @@ proc test__isEmptySearchSpace_inputIsEmpty(test: borrowed Test) throws {
   var bag = new DistBag(int(64));
   test.assertTrue(searcher._isEmptySearchSpace(bag));
 }
+
 proc test__isEmptySearchSpace_inputIsEmpty_OtherBagisNotEmpty(test: borrowed Test) throws {
   const impl = new CounterImpl();
   const searcher = new Searcher(Int, impl);
@@ -190,7 +186,6 @@ proc test__isEmptySearchSpace_inputIsEmpty_OtherBagisNotEmpty(test: borrowed Tes
   
   test.assertTrue(searcher._isEmptySearchSpace(bag));
 }
-
 
 proc test__isEmptySearchSpace_inputHasOneElement(test: borrowed Test) throws {
   const impl = new CounterImpl();
@@ -213,8 +208,9 @@ proc test_aStar(test: borrowed Test) throws {
   const impl = new CounterImpl();
   const searcher = new Searcher(Int, impl);
   var start = new Int();
+  var defaultInt = new Int();
   const g = 0.0:real;
-  var result = searcher.aStar(start, g);
+  var result = searcher.aStar(start, defaultInt, g);
   test.assertTrue(true);
 }
 /*
