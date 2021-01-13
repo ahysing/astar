@@ -1,15 +1,15 @@
 use Tile;
 
-const numRows : int = 6;
-const numColumns : int = 7;
-const StateDom : domain(2) = {0..numRows, 0..numColumns};
+const numRows: int = 6;
+const numColumns: int = 7;
+const StateDom: domain(2) = {0..numRows, 0..numColumns};
 
 record State {
-  var board : [StateDom] Tile;
+  var board: [StateDom] Tile;
 
   proc init() { }
 
-  proc init(board : [StateDom] Tile) {
+  proc init(board: [StateDom] Tile) {
     this.board = board;
   }
 }

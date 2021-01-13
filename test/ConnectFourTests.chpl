@@ -36,7 +36,7 @@ proc test_placeTile_InputIsYellow(test: borrowed Test) throws {
 
 proc test_countWindows_WindowsAreHorizontal(test: borrowed Test) throws {
   const connectFour = new ConnectFour(1);
-  var board : [BoardDom] Tile;
+  var board: [BoardDom] Tile;
   for i in 0..3 do
       board[0, i] = Tile.Red;
   for i in 1..4 do
@@ -50,7 +50,7 @@ proc test_countWindows_WindowsAreHorizontal(test: borrowed Test) throws {
 
 proc test_countWindows_WindowsAreVertical(test: borrowed Test) throws {
   const connectFour = new ConnectFour(1);
-  var board : [BoardDom] Tile;
+  var board: [BoardDom] Tile;
   for i in 0..3 do
       board[i, 0] = Tile.Red;
   for i in 1..4 do
@@ -64,7 +64,7 @@ proc test_countWindows_WindowsAreVertical(test: borrowed Test) throws {
 
 proc test_countWindows_WindowsAreDiagonalLeftToRight(test: borrowed Test) throws {
   const connectFour = new ConnectFour(1);
-  var board : [BoardDom] Tile;
+  var board: [BoardDom] Tile;
   board[0, 0] = Tile.Red;
   board[1, 1] = Tile.Red;
   board[2, 2] = Tile.Red;
@@ -78,7 +78,7 @@ proc test_countWindows_WindowsAreDiagonalLeftToRight(test: borrowed Test) throws
 
 proc test_countWindows_WindowsAreDiagonalRightToLeft(test: borrowed Test) throws {
   const connectFour = new ConnectFour(1);
-  var board : [BoardDom] Tile;
+  var board: [BoardDom] Tile;
   board[0, 3] = Tile.Red;
   board[1, 2] = Tile.Red;
   board[2, 1] = Tile.Red;
@@ -98,7 +98,7 @@ proc test_StateEquals(test: borrowed Test) throws {
 
 proc test_countWindowsDiagonalLeftToRight_WindowsAreDiagonalLeftToRight(test: borrowed Test) throws {
   const connectFour = new ConnectFour(1);
-  var board : [BoardDom] Tile;
+  var board: [BoardDom] Tile;
   board[0, 0] = Tile.Red;
   board[1, 1] = Tile.Red;
   board[2, 2] = Tile.Red;
@@ -111,7 +111,7 @@ proc test_countWindowsDiagonalLeftToRight_WindowsAreDiagonalLeftToRight(test: bo
 }
 
 proc test_isGoalState_RedPlayerIsWinning(test: borrowed Test) throws {
-  var board : [BoardDom] Tile;
+  var board: [BoardDom] Tile;
   board[0, 0] = Tile.Red;
   board[0, 1] = Tile.Red;
   board[0, 2] = Tile.Red;
@@ -122,7 +122,7 @@ proc test_isGoalState_RedPlayerIsWinning(test: borrowed Test) throws {
 }
 
 proc test_isGoalState_YellowPlayerIsWinning(test: borrowed Test) throws {
-  var board : [BoardDom] Tile;
+  var board: [BoardDom] Tile;
   board[0, 0] = Tile.Yellow;
   board[0, 1] = Tile.Yellow;
   board[0, 2] = Tile.Yellow;
@@ -133,7 +133,7 @@ proc test_isGoalState_YellowPlayerIsWinning(test: borrowed Test) throws {
 }
 
 proc test_isGoalState_NoPlayerIsWinning(test: borrowed Test) throws {
-  var board : [BoardDom] Tile;
+  var board: [BoardDom] Tile;
   board[0, 0] = Tile.Yellow;
   board[0, 1] = Tile.Yellow;
   board[0, 2] = Tile.Yellow;
@@ -141,5 +141,57 @@ proc test_isGoalState_NoPlayerIsWinning(test: borrowed Test) throws {
   const connectFour = new ConnectFour(1);
   test.assertFalse(connectFour.isGoalState(state));
 }
+
+proc oneIfNotUnplaced(tile: Tile) {
+  if tile == Tile.Unset then return 1;
+  else return 0;
+}
+// TODO: bus error here
+proc test__createNextState_outputPlayerIsNotEqualToInputPlayer(test: borrowed Test) throws {
+  const connectFour = new ConnectFour(1);
+  var start: [BoardDom] Tile;
+  var gameContext = new GameContext(board=start, player=Player.Yellow);
+  var result = connectFour._createNextState(gameContext, (0, 0));
+  test.assertNotEqual(result.player, gameContext.player);
+}
+
+proc test__createNextState_outputBoardIsNotEqualToInputBoard(test: borrowed Test) throws {
+  const connectFour = new ConnectFour(1);
+  var start: [BoardDom] Tile;
+  var gameContext = new GameContext(board=start, player=Player.Yellow);
+  var result = connectFour._createNextState(gameContext, (0, 0));
+  test.assertNotEqual(result.board, gameContext.board);
+}
+/*
+proc test_findNeighbors_numberOfNeigborsIs7(test: borrowed Test) throws {
+  const connectFour = new ConnectFour(1);
+  var start: [BoardDom] Tile;
+  var gameContext = new GameContext(board=start, player=Player.Yellow);
+  var it = 0;
+  for neighbor in connectFour.findNeighbors(gameContext) {
+    writeln(neighbor.board);
+    it += 1;
+  }
+  test.assertEqual(7, it);
+}
+
+proc test_findNeighbors(test: borrowed Test) throws {
+  const connectFour = new ConnectFour(1);
+  var start: [BoardDom] Tile;
+  var gameContext = new GameContext(board=start, player=Player.Yellow);
+  
+  for neighbor in connectFour.findNeighbors(gameContext) {
+    var values: [BoardDom] int;
+    var i = 0;
+    for d in neighbor.board.domain {
+      values[d] = oneIfNotUnplaced(neighbor.board[d]);
+      i += 1;
+    }
+
+    test.assertEqual(1, (+ reduce values));
+  }
+}
+*/
+
 
 UnitTest.main();

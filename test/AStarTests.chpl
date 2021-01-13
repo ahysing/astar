@@ -9,20 +9,20 @@ record Impl {
 }
 
 record CounterImpl {
-  proc isGoalState(context : Int) {
+  proc isGoalState(context: Int) {
     return context.value == 10;
   }
 
-  iter findNeighbors(context : Int) {
+  iter const findNeighbors(context: Int) {
     const next = context.value + 1;
     yield new Int(next);
   }
 
-  proc heuristic(context : Int) {
+  proc heuristic(context: Int) {
     return abs(10 - context.value);
   }
 
-  proc distance(a : Int, b : Int) {
+  proc distance(a: Int, b: Int) {
     return abs(a.value - b.value);
   }
 }
@@ -37,7 +37,7 @@ proc test_init_Searcher(test: borrowed Test) throws {
 }
 
 record Int {
-  var value : int = 0;
+  var value: int = 0;
 }
 
 proc ==(l: Int, r: Int) {
@@ -86,7 +86,7 @@ proc test_remove_inputContainsFirst(test: borrowed Test) throws {
   bag.add(0);
   bag.add(1);
   
-  searcher._remove(bag, 2);
+  searcher._removeStateFromOpenSet(bag, 2);
 
   test.assertTrue(bag.contains(0));
 }
@@ -98,7 +98,7 @@ proc test_remove_inputContainsSecond(test: borrowed Test) throws {
   bag.add(0);
   bag.add(1);
   
-  searcher._remove(bag, 2);
+  searcher._removeStateFromOpenSet(bag, 2);
 
   test.assertTrue(bag.contains(1));
 }
@@ -110,7 +110,7 @@ proc test_remove_inputRemainsSameSize(test: borrowed Test) throws {
   bag.add(0);
   bag.add(1);
   
-  searcher._remove(bag, 2);
+  searcher._removeStateFromOpenSet(bag, 2);
 
   test.assertTrue(bag.contains(0));
   test.assertTrue(bag.contains(1));
@@ -125,14 +125,13 @@ proc test_remove_resultLacksRemovedElement(test: borrowed Test) throws {
   bag.add(0);
   bag.add(1);
   
-  searcher._remove(bag, 1);
+  searcher._removeStateFromOpenSet(bag, 1);
 
   test.assertTrue(bag.contains(0));
   test.assertFalse(bag.contains(1));
 }
 
 proc test_removeStateFromOpenSet_SetsGScoreIndexToMinusInfinity(test: borrowed Test) throws {
-  var gScores : [0..2] real = max(real);
   var openSet = new DistBag(int);
   const idx = 1;
   openSet.add(idx);
@@ -140,15 +139,13 @@ proc test_removeStateFromOpenSet_SetsGScoreIndexToMinusInfinity(test: borrowed T
   const searcher = new Searcher(Int, impl);
 
 
-  searcher._removeStateFromOpenSet(openSet, gScores, idx);
+  searcher._removeStateFromOpenSet(openSet, idx);
 
 
-  test.assertEqual(min(real), gScores[idx]);
   test.assertEqual(false, openSet.contains(idx));
 }
 
 proc test_removeStateFromOpenSet(test: borrowed Test) throws {
-  var gScores : [0..2] real;
   var openSet = new DistBag(int);
   const idx = 1;
   openSet.add(0);
@@ -159,7 +156,7 @@ proc test_removeStateFromOpenSet(test: borrowed Test) throws {
   const searcher = new Searcher(Int, impl);
 
 
-  searcher._removeStateFromOpenSet(openSet, gScores, idx);
+  searcher._removeStateFromOpenSet(openSet, idx);
 
 
   test.assertEqual(false, openSet.contains(idx));
@@ -227,8 +224,8 @@ proc test__pickScoresAndStateOnLocale(test: borrowed Test) throws {
   const impl = new CounterImpl();
   const searcher = new Searcher(Int, impl);
   
-  var D : domain(1) dmapped Cyclic(startIdx=0) = {0..2};
-  var fScores : [D] real;
+  var D: domain(1) dmapped Cyclic(startIdx=0) = {0..2};
+  var fScores: [D] real;
   fScores[0] = max(real);
   fScores[1] = 1.0;
   fScores[2] = max(real);
@@ -246,12 +243,12 @@ proc test__pickScoresAndStateOnLocale(test: borrowed Test) throws {
 }
 
 proc test_getIndexWithLowestFScore(test: borrowed Test) throws {
-  var D : domain(1) dmapped Cyclic(startIdx=0) = {0..2};
-  var fScores : [D] real;
+  var D: domain(1) dmapped Cyclic(startIdx=0) = {0..2};
+  var fScores: [D] real;
   fScores[0] = max(real);
   fScores[1] = 1.0;
   fScores[2] = max(real);
-  var allStates : [D] Int;
+  var allStates: [D] Int;
   allStates[0] = new Int(10);
   allStates[1] = new Int(11);
   allStates[2] = new Int(12);
@@ -274,7 +271,7 @@ proc test_reverseLinearSearch_InputIsZeroOne(test: borrowed Test) throws {
   const impl = new CounterImpl();
   const searcher = new Searcher(int, impl);
 
-  const allStates : [0..1] int = {0..1};
+  const allStates: [0..1] int = {0..1};
   const lookingFor = 1;
   const high = 1;
   
@@ -288,7 +285,7 @@ proc test_reverseLinearSearch(test: borrowed Test) throws {
   const impl = new CounterImpl();
   const searcher = new Searcher(int, impl);
 
-  const allStates : [0..20] int = {0..20};
+  const allStates: [0..20] int = {0..20};
   const lookingFor = 8;
   const high = 10;
   
@@ -302,7 +299,7 @@ proc test_reverseLinearSearch_inputIsOusideOfRange(test: borrowed Test) throws {
   const impl = new CounterImpl();
   const searcher = new Searcher(int, impl);
 
-  const allStates : [0..20] int = {0..20};
+  const allStates: [0..20] int = {0..20};
   const lookingFor = 11;
   const high = 10;
   
