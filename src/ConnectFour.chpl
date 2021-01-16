@@ -53,37 +53,30 @@ record ConnectFour {
 
   proc _createNextState(context: GameContext, placeAt: 2*int): GameContext {
     var nextBoard = context.board;
-    nextBoard[placeAt] = placeTile(context.player);
+    const nextTile =  placeTile(context.player);
+    nextBoard[placeAt] = nextTile;
     const nextPlayer = findNextPlayer(context.player);
     const nextState = new shared GameContext(player=nextPlayer, board=nextBoard);
+    writeln("_createNextState next tile: ", nextTile, " nextPlayer ", nextPlayer, " nextBoard\n", nextBoard);
     return nextState;
   }
 
   iter const findNeighbors(context: GameContext) {
     const vertical = context.board.domain.dim[0];
     const horizontal = context.board.domain.dim[1];
-    var values = new LinkedList(shared GameContext);
-    var hasAny = false;
-    for i in vertical {
-      for j in horizontal {
+    const firstIndex = context.board.domain.low[0];
+    for j in horizontal {
+      var hasAny = false;  
+      for i in vertical by -1 {
         if context.board[i, j] != Tile.Unset && context.board.domain.contains((i - 1, j)) {
-          values.append(_createNextState(context, (i - 1, j)));
           hasAny = true;
-          writeln("Adding ", (i - 1, j));
+          yield _createNextState(context, (i - 1, j));
           break;
         }
       }
+      if ! hasAny then
+        yield _createNextState(context, (firstIndex, j));
     }
-
-    if ! hasAny {
-      for j in horizontal {
-        values.append(_createNextState(context, (context.board.domain.low[0], j)));
-        writeln("Adding initial ", (context.board.domain.low[0], j));
-      }
-    }
-
-    for value in values.these() do
-      yield value;
   }
 
   proc _minimax(context: GameContext, depth: int, maximizingPlayer: bool, player: Player, conf): real {

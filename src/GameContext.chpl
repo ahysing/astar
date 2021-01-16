@@ -3,14 +3,12 @@ use Tile;
 
 const numRows: int = 6;
 const numColumns: int = 7;
-const BoardDom: domain(2) = {0..numRows, 0..numColumns};
+const BoardDom: domain(2) = {0..(numRows - 1), 0..(numColumns - 1)};
 
 class GameContext {
   var board: [BoardDom] Tile;
   var player: Player;
   proc init() {
-    var b: [BoardDom] Tile;
-    this.board = b;
     this.player = Player.Yellow;
   }
 

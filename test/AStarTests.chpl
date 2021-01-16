@@ -201,25 +201,6 @@ proc test__isEmptySearchSpace_inputIsEmptyAgain(test: borrowed Test) throws {
   test.assertTrue(searcher._isEmptySearchSpace(bag));
 }
 
-proc test_aStar(test: borrowed Test) throws {
-  const impl = new CounterImpl();
-  const searcher = new Searcher(Int, impl);
-  var start = new Int();
-  var defaultInt = new Int();
-  const g = 0.0:real;
-  var result = searcher.aStar(start, defaultInt, g);
-  test.assertTrue(true);
-}
-/*
-proc test_aStar_inputIsCountOneToTen_OutputIsDistanceNine(test: borrowed Test) throws {
-  const impl = new CounterImpl();
-  const searcher = new Searcher(Int, impl);
-  var start = new Int();
-  const g = 0.0:real;
-  var (distance,_) = searcher.aStar(start, g);
-  test.assertEqual(9.0, distance);
-}
-*/
 proc test__pickScoresAndStateOnLocale(test: borrowed Test) throws {
   const impl = new CounterImpl();
   const searcher = new Searcher(Int, impl);

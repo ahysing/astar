@@ -1,11 +1,12 @@
 /* Documentation for AStar */
 module AStar {
-  use LinkedLists;
-  private use ReplicatedVar;
+  private use AllLocalesBarriers;
   private use CyclicDist;
   private use DistributedBag;
   private use PeekPoke;
+  private use ReplicatedVar;
   private use Search;
+  use LinkedLists;
 
   type idxT = int(64);
 
@@ -37,7 +38,7 @@ module AStar {
       return true;
     }
 
-    iter _pickScoresAndStateOnLocale(const ref openSet: DistBag(idxT), const ref fScores, loc: locale) {
+    iter const _pickScoresAndStateOnLocale(const ref openSet: DistBag(idxT), const ref fScores, loc: locale) {
       for idx in openSet.these() do
         if fScores[idx].locale.id == loc.id then
           yield (fScores[idx], idx);
@@ -45,10 +46,8 @@ module AStar {
 
     proc _getIndexWithLowestFScore(const ref openSet: DistBag(idxT), fScores, loc: locale) {
       const indicesThenFScores = _pickScoresAndStateOnLocale(openSet, fScores, loc);
-      for value in indicesThenFScores {
-        const (fScore, idxCurrent) = minloc reduce indicesThenFScores;
-        return (true, idxCurrent);
-      }
+      for value in indicesThenFScores do
+        return (true, (minloc reduce indicesThenFScores)[1]);
       const defaultIdx: idxT;
       return (false, defaultIdx);
     }
@@ -74,11 +73,27 @@ module AStar {
       writeln("Inside _remove openset: ", openSet); 
     }
     
+    proc _indexNotFound() {
+      return (false, min(idxT));
+    }
+    
+    proc _getTopIndex(allStates, hi) {
+      var high = allStates.domain.high;
+      if hi < high then
+        high = hi;
+      return high;
+    }
+    
     proc _reverseLinearSearch(const ref allStates: [?Dom] this.eltType, lookingFor: this.eltType, hi: idxT) {
-      for i in 0..hi by -1 do
-        if allStates[i] == lookingFor then
-          return (true, i);
-      return (false, hi + 1);
+      const low = allStates.domain.low;
+      const high = _getTopIndex(allStates, hi);
+//      return linearSearch(allStates, lookingFor, hi=high);
+      for i in low..high by -1 {
+        if allStates.domain.contains(i) then
+          if allStates[i] == lookingFor then
+            return (true, i);
+      }
+      return _indexNotFound();
     }
 
     proc _aquireNewLastIndex(ref size: atomic idxT, inObservedSize: idxT) {
@@ -93,71 +108,60 @@ module AStar {
       return lastIdx;  
     }
 
-    proc _aquireIdxToNewNeigbor(ref size: atomic idxT, const ref allStates: [?Dom] this.eltType, neighbor: this.eltType) {
+    proc _aquireIdxToNewNeigbor(const ref allStates: [?Dom] this.eltType, neighbor: this.eltType, sizeFromLastStage: idxT, size: atomic idxT) {
       // Currently, unless using network atomics, all remote atomic operations will result in the calling task effectively migrating to the locale on which the atomic variable was allocated and performing the atomic operations locally.
       // https://chapel-lang.org/docs/technotes/atomics.html
-      var foundOrAquired: bool;
-      var idxNeighbor, observedSize, lastObservedIdx: idxT;
-      const initialSize = size.read();
-      const initialLastIdx = initialSize - 1;
-      (foundOrAquired, idxNeighbor) = _reverseLinearSearch(allStates, neighbor, hi = initialLastIdx);
+      const (foundOrAquired, idxNeighbor) = _reverseLinearSearch(allStates, neighbor, hi = sizeFromLastStage);
       if foundOrAquired {
         writeln("index ", idxNeighbor, " state exists already");
         return idxNeighbor;
       } else {
+        const initialSize = size.read();
         const lastIdx = _aquireNewLastIndex(size, initialSize);
         writeln("index ", lastIdx, " created new");
         return lastIdx;
       }
     }
 
-    proc _aggregateIsGoalStateAcrossNodes(hasFinished: [rcDomain] bool) {
+    proc _IsGoalStateAcrossNodes(hasFinished: [rcDomain] bool) {
       var hasReachedGoalAcrossAllLocales: [LocaleSpace] bool;
       rcCollect(hasFinished, hasReachedGoalAcrossAllLocales);
       return (|| reduce hasReachedGoalAcrossAllLocales);
     }
 
-    proc _collectValuesAcrossNodes(distanceAndNextStep: [rcDomain] (real, idxT)) {
-      var gScoresAndIndexAcrossAllLocales: [LocaleSpace] (real, idxT);
-      rcCollect(distanceAndNextStep, gScoresAndIndexAcrossAllLocales);
-      writeln("gScoresAndIndexAcrossAllLocales ", gScoresAndIndexAcrossAllLocales);
-      return gScoresAndIndexAcrossAllLocales;
-    }
 
-    proc _aggregateLowestStepAndDistanceAcrossNodes(distanceAndNextStep: [rcDomain] (real, idxT)) {
-      writeln("gScoresAndIndexAcrossAllLocales...");
-      const gScoresAndIndexAcrossAllLocales = _collectValuesAcrossNodes(distanceAndNextStep);
-      writeln("finding smallest...");
+    proc _aggregateLowestStepAndDistanceAcrossNodes(lowestDistances: [rcDomain] real, lowestNextSteps: [rcDomain] idxT) {
+      var gScoresAcrossAllNodes: [LocaleSpace] real;
+      rcCollect(lowestDistances, gScoresAcrossAllNodes);
+      var indicesAcrossAllNodes: [LocaleSpace] idxT;
+      rcCollect(lowestNextSteps, indicesAcrossAllNodes);
+      writeln("gScoresAndIndexAcrossAllLocales ", gScoresAcrossAllNodes, " ", indicesAcrossAllNodes);
       var lowestDistance = max(real);
-      var lowestIndex = min(idxT);
-      for (distance, nextStepIndex) in gScoresAndIndexAcrossAllLocales {
+      var lowestNextStep = min(idxT);
+      for (distance, nextStepIndex) in zip(gScoresAcrossAllNodes, indicesAcrossAllNodes) {
         if distance <= lowestDistance {
           lowestDistance = distance;
-          lowestIndex = nextStepIndex;
+          lowestNextStep = nextStepIndex;
         }
       }
-      writeln("found ", (lowestDistance, lowestIndex));
-      return (lowestDistance, lowestIndex);
+      return (lowestDistance, lowestNextStep);
     }
 
-    proc _aggregateNextStepAcrossNodes(distanceAndNextStep: [rcDomain] (real, idxT), const ref allStates: [?Dom] this.eltType) {
-      const (gScore, nextStepIdx) = _aggregateLowestStepAndDistanceAcrossNodes(distanceAndNextStep);
+    proc _aggregateNextStepAcrossNodes(lowestDistances: [rcDomain] real, lowestNextSteps: [rcDomain] idxT, const ref allStates: [?Dom] this.eltType) {
+      const (gScore, nextStepIdx) = _aggregateLowestStepAndDistanceAcrossNodes(lowestDistances, lowestNextSteps);
+      writeln("_aggregateNextStepAcrossNodes g-score: ", gScore, " next step index: ", nextStepIdx);
       return allStates[nextStepIdx];
     }
 
-    proc _aggregateLowestDistanceAcrossNodes(distanceAndNextStep: [rcDomain] (real, idxT)) {
-      const (gScore, nextStepIdx) = _aggregateLowestStepAndDistanceAcrossNodes(distanceAndNextStep);
+    proc _aggregateLowestDistanceAcrossNodes(lowestDistances: [rcDomain] real, lowestNextSteps: [rcDomain] idxT) {
+      const (gScore, nextStepIdx) = _aggregateLowestStepAndDistanceAcrossNodes(lowestDistances, lowestNextSteps);
       return gScore;
     }
-
-    proc _fillHasFinished(hasFinished: [rcDomain] bool) {
-      rcReplicate(hasFinished, false); 
-    }
     
-    proc _findNextStepByLowestDistance(lowestNextSteps: DistBag((real, idxT))) {
+    proc _findNextStepByLowestDistance(potentialNextSteps: domain((real, idxT))) {
       var lowestDistance = max(real);
       var lowestStepFinal: idxT;
-      for (tentativeGScore, at) in lowestNextSteps.these() do
+      for (tentativeGScore, at) in potentialNextSteps do
         if tentativeGScore < lowestDistance then
           (lowestDistance, lowestStepFinal) = (tentativeGScore, at);
       return (lowestDistance, lowestStepFinal);          
@@ -180,6 +184,13 @@ module AStar {
       }
     }
 
+    proc _updateNeighbor(allStates, fScores, gScores, idxNeighbor, neighbor, distance, tentativeGScore) {
+      allStates[idxNeighbor] = neighbor;
+      on gScores[idxNeighbor] do fScores[idxNeighbor] = tentativeGScore + impl.heuristic(neighbor);
+      on gScores[idxNeighbor] do if tentativeGScore < gScores[idxNeighbor] then
+        gScores[idxNeighbor] = tentativeGScore;     
+    }
+
      /*
       A* search algorithm (pronounced "A-star search algorithm").
       :arg start: The starting position, or state, in the A* algorithm search space.
@@ -190,7 +201,6 @@ module AStar {
       :rtype: (`real`, `LinkedList(eltType)`)
     */
     proc aStar(ref start: this.eltType, ref defaultForType: this.eltType, distanceToStart: real): (real, LinkedList(this.eltType)) {      
-      writeln("aStar");
       const bboxScores = {_low.._high};
       const ALL: domain(1) dmapped Cyclic(startIdx=bboxScores.low) = bboxScores;
       // For node n, gScore[n] is the cost of the cheapest path from start to n currently known.
@@ -212,83 +222,85 @@ module AStar {
       var openSet = new DistBag(idxT);
       openSet.add(startIdx);
       // The states we traveled to to get to the end. States are ordered from start to goal state.
-      var path: LinkedList(this.eltType);
-      path = makeList(start);
+      var path: LinkedList(this.eltType) = makeList(start);
       // hasFinished contains a flag indicating if any of the .ocales has found any finishing state
-      writeln("all arrays ready on ", here);
-      var hasFinished: [rcDomain] bool;
-      _fillHasFinished(hasFinished);
-      // distanceAndNextStep contains the smallest distance traveled to the best state explored on the locale
+      var hasFinished: [rcDomain] bool = false;
+      // contains the smallest distance traveled to the best state explored on the locale
       // during the current iteration
-      var distanceAndNextStep: [rcDomain] (real, idxT);     
+      var lowestDistances: [rcDomain] real;
+      var lowestNextSteps: [rcDomain] idxT;
       
-      
-      var it = 0;
-      while ! _isEmptySearchSpace(openSet) do {
-        writeln("openset: ", openSet);
-        for loc in Locales {
-          const (hasValueInThisLocale, idxCurrent) = _getIndexWithLowestFScore(openSet, fScores, loc);
-          on loc {
+      for loc in Locales {
+        on loc {          
+          while ! (_isEmptySearchSpace(openSet) || _IsGoalStateAcrossNodes(hasFinished)) do {
+            const (hasValueInThisLocale, idxCurrent) = _getIndexWithLowestFScore(openSet, fScores, loc);
+            writeln("openset: ", openSet);
             if ! hasValueInThisLocale {
-              rcLocal(distanceAndNextStep)[0] = max(real);
-              rcLocal(distanceAndNextStep)[1] = min(idxT);
+              rcLocal(lowestDistances) = max(real);
+              rcLocal(lowestNextSteps) = min(idxT);
+            
+              allLocalesBarrier.barrier();
             } else {
+              const sizeFromLastStage = size.read();
+              
               _removeStateFromOpenSet(openSet, idxCurrent);
               // mark index at negative infinity. gScores[idxCurrent] will never pass the `tentativeGScore < gScores[idxNeighbor]` condition in A-star algorithm.
               const gScore = gScores[idxCurrent];
               gScores[idxCurrent] = min(real);
               const current = allStates[idxCurrent];
-              if impl.isGoalState(current) {
-                rcLocal(hasFinished) = true;
-                rcLocal(distanceAndNextStep)[0] = gScores[idxCurrent];
-                rcLocal(distanceAndNextStep)[1] = idxCurrent;
+              const isGoalState = impl.isGoalState(current);
+              rcLocal(hasFinished) = isGoalState;
+              if isGoalState {
+                rcLocal(lowestDistances) = gScores[idxCurrent];
+                rcLocal(lowestNextSteps) = idxCurrent;
+                allLocalesBarrier.barrier();
               } else {
-                var lowestNextSteps = _createBag(loc);
-                coforall neighbor in impl.findNeighbors(current) do {
+                var potentialNextSteps: domain((real, idxT));
+                var neighbors: domain(idxT);
+                for neighbor in impl.findNeighbors(current) do {
                   // TODO: figure out why idxNeighbor == 0 and not unique
-                  const idxNeighbor = _aquireIdxToNewNeigbor(size, allStates, neighbor);
+                  const idxNeighbor = _aquireIdxToNewNeigbor(allStates, neighbor, sizeFromLastStage, size);
                   const distance = impl.distance(current, neighbor);
                   const tentativeGScore = gScore + distance;
                   writeln("here: ", here, " index neighbor: ", idxNeighbor, " gScore neighbor: ", tentativeGScore);
-                  allStates[idxNeighbor] = neighbor;
                   // heuristic(neighbor) is the heuristic distance from neighbor to finish
                   // fScore[neighbor] is the heuristic distance from start to finish.
                   // We know we hare passing through neighbor.
-                  on gScores[idxNeighbor] do fScores[idxNeighbor] = tentativeGScore + impl.heuristic(neighbor);
-                  on gScores[idxNeighbor] do if tentativeGScore < gScores[idxNeighbor] then
-                    gScores[idxNeighbor] = tentativeGScore;                   
-                  on gScores[idxNeighbor] do if ! openSet.contains(idxNeighbor) then
-                    openSet.add(idxNeighbor);
-                  lowestNextSteps.add((tentativeGScore, idxNeighbor));
+                  _updateNeighbor(allStates, fScores, gScores, idxNeighbor, neighbor, distance, tentativeGScore);
+                  potentialNextSteps += (tentativeGScore, idxNeighbor);
+                  neighbors += idxNeighbor;              
                 }
-                writeln("lowestNextSteps:\n", lowestNextSteps);
-        
-                const (lowestDistance, lowestStepFinal) = _findNextStepByLowestDistance(lowestNextSteps);
+
+                // update open set
+                for idxNeighbor in neighbors do
+                  if ! openSet.contains(idxNeighbor) then
+                    openSet.add(idxNeighbor);
+                
+
+                // save lowest distance for state: current
+                writeln("potentialNextSteps:\n", potentialNextSteps);
+                const (lowestDistance, lowestStepFinal) = _findNextStepByLowestDistance(potentialNextSteps);
                 writeln("here: ", here, " lowestDistance: ", lowestDistance, " lowestStepFinal: ", lowestStepFinal);
-                rcLocal(distanceAndNextStep)[0] = lowestDistance;
-                rcLocal(distanceAndNextStep)[1] = lowestStepFinal;
+                rcLocal(lowestDistances) = lowestDistance;
+                rcLocal(lowestNextSteps) = lowestStepFinal;
+
+                allLocalesBarrier.barrier();
+
+                on path {
+                  const nextStep = _aggregateNextStepAcrossNodes(lowestDistances, lowestNextSteps, allStates);
+                  path.append(nextStep);
+                  writeln("Adding step:\n", nextStep ,"\nto full path:\n", path);
+                }          
+                writeln("Continuing aStar to next iteration");
               }
             }
           }
         }
 
-        if _aggregateIsGoalStateAcrossNodes(hasFinished) then
-          return (_aggregateLowestDistanceAcrossNodes(distanceAndNextStep), path);    
-        
-        writeln("Continuing aStar to next iteration");
-        const nextStep = _aggregateNextStepAcrossNodes(distanceAndNextStep, allStates);
-        writeln("appending next step\n", nextStep);
-        path.append(nextStep);
-        writeln("rebalancing open set");    
-        openSet.balance();
-
-        it += 1;
-        if it == 100 {
-          return (distanceToStart, path);
-        }
+        return (_aggregateLowestDistanceAcrossNodes(lowestDistances, lowestNextSteps), path); 
       }
 
-      halt("Dead code");
+      halt("You reachad end of a* search space without reading any final state. Review your function isGoalState. Make sure that the final state can be reached.");
       return (distanceToStart, path);
     }
   }
@@ -300,7 +312,7 @@ module AStar {
   private use Tile;
   proc main() {
     writeln("Started");
-    writeln("This program is running on ", numLocales, " locales");
+    writeln("This program is running on ", numLocales, " different locales");
     const connectFour = new ConnectFour(5);
     const board: [BoardDom] Tile;
     var gameContext = new shared GameContext(board, player=Player.Red);

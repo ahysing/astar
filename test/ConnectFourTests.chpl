@@ -143,10 +143,10 @@ proc test_isGoalState_NoPlayerIsWinning(test: borrowed Test) throws {
 }
 
 proc oneIfNotUnplaced(tile: Tile) {
-  if tile == Tile.Unset then return 1;
+  if tile != Tile.Unset then return 1;
   else return 0;
 }
-// TODO: bus error here
+
 proc test__createNextState_outputPlayerIsNotEqualToInputPlayer(test: borrowed Test) throws {
   const connectFour = new ConnectFour(1);
   var start: [BoardDom] Tile;
@@ -162,16 +162,17 @@ proc test__createNextState_outputBoardIsNotEqualToInputBoard(test: borrowed Test
   var result = connectFour._createNextState(gameContext, (0, 0));
   test.assertNotEqual(result.board, gameContext.board);
 }
-/*
+
 proc test_findNeighbors_numberOfNeigborsIs7(test: borrowed Test) throws {
   const connectFour = new ConnectFour(1);
   var start: [BoardDom] Tile;
   var gameContext = new GameContext(board=start, player=Player.Yellow);
   var it = 0;
+
   for neighbor in connectFour.findNeighbors(gameContext) {
-    writeln(neighbor.board);
     it += 1;
   }
+
   test.assertEqual(7, it);
 }
 
@@ -191,7 +192,28 @@ proc test_findNeighbors(test: borrowed Test) throws {
     test.assertEqual(1, (+ reduce values));
   }
 }
-*/
 
+proc test_BoardDim_ColumnsStartsAtIndex0(test: borrowed Test) throws {
+  const connectFour = new ConnectFour(1);
+  var start: [BoardDom] Tile;
+  test.assertEqual(0, start.domain.low(1));
+}
+
+proc test_BoardDim_ColumnsEndsAtIndex6(test: borrowed Test) throws {
+  const connectFour = new ConnectFour(1);
+  var start: [BoardDom] Tile;
+  test.assertEqual(6, start.domain.high(1));
+}
+
+proc test_boardHas42Spots(test: borrowed Test) throws {
+  const board: [BoardDom] Tile;
+  var size = 0;  
+  for d in board.domain {
+    size += 1;
+  }
+
+  param expectedSize = 6 * 7;
+  test.assertEqual(expectedSize, size);
+}
 
 UnitTest.main();
