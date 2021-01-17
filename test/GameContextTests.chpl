@@ -2,6 +2,7 @@ use UnitTest;
 use GameContext;
 use Tile;
 use Player;
+use LinkedLists;
 
 proc test_GameContext_Constructor(test: borrowed Test) throws {
   var gameContext = new owned GameContext();
@@ -39,4 +40,32 @@ proc test_GameContext_ConstructorWithParameters_OutputPlayerIsYellow(test: borro
   test.assertEqual(Player.Yellow, gameContext.player);
 }
 
+
+
+proc test_GameContext_AddAndGetFromList(test: borrowed Test) throws {
+  var board: [StateDom] Tile;
+  var gameContext = new shared GameContext(board=board, player=Player.Yellow);
+  
+  var all = new LinkedList(gameContext.type);
+  all.append(gameContext);
+
+  for step in all.these() do
+    test.assertEqual(Player.Yellow, step.player);
+}
+
+
+proc test_GameContext_AddAndGetFromList_ResultHasSameTile(test: borrowed Test) throws {
+  var board: [StateDom] Tile;
+  for d in board.domain do
+    board[d] = Tile.Yellow;
+
+  var gameContext = new shared GameContext(board=board, player=Player.Yellow);
+  
+  var all = new LinkedList(gameContext.type);
+  all.append(gameContext);
+
+  for step in all.these() do
+    for d in step.board.domain do
+      test.assertEqual(Tile.Yellow, step.board[d]);
+}
 UnitTest.main();

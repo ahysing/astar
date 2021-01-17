@@ -248,43 +248,46 @@ proc test_getIndexWithLowestFScore(test: borrowed Test) throws {
   test.assertEqual(expectedIdx, result[1]);
 }
 
-proc test_reverseLinearSearch_InputIsZeroOne(test: borrowed Test) throws {
+proc test_reverseSearchForOpenState_InputIsZeroOne(test: borrowed Test) throws {
   const impl = new CounterImpl();
   const searcher = new Searcher(int, impl);
 
   const allStates: [0..1] int = {0..1};
+  const gScores: [0..1] real = 0.0;
   const lookingFor = 1;
   const high = 1;
   
-  var (found, idx) = searcher._reverseLinearSearch(allStates, lookingFor, high);
+  var (found, idx) = searcher._reverseSearchForOpenState(allStates, gScores, lookingFor, high);
 
   test.assertTrue(found);
   test.assertEqual(lookingFor, idx);
 }
 
-proc test_reverseLinearSearch(test: borrowed Test) throws {
+proc test_reverseSearchForOpenState(test: borrowed Test) throws {
   const impl = new CounterImpl();
   const searcher = new Searcher(int, impl);
 
   const allStates: [0..20] int = {0..20};
+  const gScores: [0..20] real = 0.0;
   const lookingFor = 8;
   const high = 10;
   
-  var (found, idx) = searcher._reverseLinearSearch(allStates, lookingFor, high);
+  var (found, idx) = searcher._reverseSearchForOpenState(allStates, gScores, lookingFor, high);
 
   test.assertTrue(found);
   test.assertEqual(lookingFor, idx);
 }
 
-proc test_reverseLinearSearch_inputIsOusideOfRange(test: borrowed Test) throws {
+proc test_reverseSearchForOpenState_inputIsOusideOfRange(test: borrowed Test) throws {
   const impl = new CounterImpl();
   const searcher = new Searcher(int, impl);
 
   const allStates: [0..20] int = {0..20};
+  const gScores: [0..20] real = 0.0;
   const lookingFor = 11;
   const high = 10;
   
-  var (found, idx) = searcher._reverseLinearSearch(allStates, lookingFor, high);
+  var (found, idx) = searcher._reverseSearchForOpenState(allStates, gScores, lookingFor, high);
 
   test.assertFalse(found);
 }

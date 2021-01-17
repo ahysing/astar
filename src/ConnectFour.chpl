@@ -247,10 +247,10 @@ record ConnectFour {
   }
 
   proc distance(a: GameContext, b: GameContext) {
-    var distance = 0;
+    var distance: real = 0.0;
     for idx in a.board.domain do
       if a.board[idx] != b.board[idx] then
-        distance += 1;
+        distance += 1.0;
     return distance:real;
   }
 }

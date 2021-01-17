@@ -6,9 +6,11 @@ module AStar {
   private use PeekPoke;
   private use ReplicatedVar;
   private use Search;
+  private use IO.FormattedIO;
   use LinkedLists;
 
   type idxT = int(64);
+  const visitedStateGScore = min(real);
 
   public class Searcher {
     type eltType;
@@ -16,7 +18,6 @@ module AStar {
     param _high: idxT = 1 << 16;
     param _low: idxT = 0;
     param startIdx = _low;
-      
     /*
       Initializes an empty Searcher.
       :arg eltType: The type of states for the A* algorithm search space.
@@ -70,11 +71,14 @@ module AStar {
         openSet.add(element);
         (ok, element) = next.remove();
       }
-      writeln("Inside _remove openset: ", openSet); 
     }
     
     proc _indexNotFound() {
       return (false, min(idxT));
+    }
+    
+    proc _isUnvisitedState(gScores, i) {
+      return gScores[i] != visitedStateGScore;
     }
     
     proc _getTopIndex(allStates, hi) {
@@ -83,15 +87,16 @@ module AStar {
         high = hi;
       return high;
     }
-    
-    proc _reverseLinearSearch(const ref allStates: [?Dom] this.eltType, lookingFor: this.eltType, hi: idxT) {
+
+    proc _reverseSearchForOpenState(const ref allStates: [?DomA] this.eltType,
+                                    const ref gScores,
+                                    lookingFor: this.eltType,
+                                    hi: idxT) {
       const low = allStates.domain.low;
       const high = _getTopIndex(allStates, hi);
-//      return linearSearch(allStates, lookingFor, hi=high);
       for i in low..high by -1 {
-        if allStates.domain.contains(i) then
-          if allStates[i] == lookingFor then
-            return (true, i);
+        if _isUnvisitedState(gScores, i) && allStates[i] == lookingFor then
+          return (true, i);
       }
       return _indexNotFound();
     }
@@ -108,10 +113,14 @@ module AStar {
       return lastIdx;  
     }
 
-    proc _aquireIdxToNewNeigbor(const ref allStates: [?Dom] this.eltType, neighbor: this.eltType, sizeFromLastStage: idxT, size: atomic idxT) {
+    proc _aquireIdxToNewNeigbor(const ref allStates: [?DomA] this.eltType,
+                                const ref gScores,
+                                neighbor: this.eltType,
+                                sizeFromLastStage: idxT,
+                                size: atomic idxT) {
       // Currently, unless using network atomics, all remote atomic operations will result in the calling task effectively migrating to the locale on which the atomic variable was allocated and performing the atomic operations locally.
       // https://chapel-lang.org/docs/technotes/atomics.html
-      const (foundOrAquired, idxNeighbor) = _reverseLinearSearch(allStates, neighbor, hi = sizeFromLastStage);
+      const (foundOrAquired, idxNeighbor) = _reverseSearchForOpenState(allStates, gScores, neighbor, hi = sizeFromLastStage);
       if foundOrAquired {
         writeln("index ", idxNeighbor, " state exists already");
         return idxNeighbor;
@@ -147,7 +156,7 @@ module AStar {
       return (lowestDistance, lowestNextStep);
     }
 
-    proc _aggregateNextStepAcrossNodes(lowestDistances: [rcDomain] real, lowestNextSteps: [rcDomain] idxT, const ref allStates: [?Dom] this.eltType) {
+    proc _aggregateNextStepAcrossNodes(lowestDistances: [rcDomain] real, lowestNextSteps: [rcDomain] idxT, const ref allStates: [?DomA] this.eltType) {
       const (gScore, nextStepIdx) = _aggregateLowestStepAndDistanceAcrossNodes(lowestDistances, lowestNextSteps);
       writeln("_aggregateNextStepAcrossNodes g-score: ", gScore, " next step index: ", nextStepIdx);
       return allStates[nextStepIdx];
@@ -174,7 +183,6 @@ module AStar {
     }
 
     proc _createAllStates(ALL, ref defaultForType: this.eltType) {
-      writeln("creating all states.");
       if isClass(this.eltType) {
         var allStates: [ALL] this.eltType = defaultForType;
         return allStates;
@@ -234,7 +242,6 @@ module AStar {
         on loc {          
           while ! (_isEmptySearchSpace(openSet) || _IsGoalStateAcrossNodes(hasFinished)) do {
             const (hasValueInThisLocale, idxCurrent) = _getIndexWithLowestFScore(openSet, fScores, loc);
-            writeln("openset: ", openSet);
             if ! hasValueInThisLocale {
               rcLocal(lowestDistances) = max(real);
               rcLocal(lowestNextSteps) = min(idxT);
@@ -244,9 +251,10 @@ module AStar {
               const sizeFromLastStage = size.read();
               
               _removeStateFromOpenSet(openSet, idxCurrent);
+              writeln("open set: ", openSet); 
               // mark index at negative infinity. gScores[idxCurrent] will never pass the `tentativeGScore < gScores[idxNeighbor]` condition in A-star algorithm.
               const gScore = gScores[idxCurrent];
-              gScores[idxCurrent] = min(real);
+              gScores[idxCurrent] = visitedStateGScore;
               const current = allStates[idxCurrent];
               const isGoalState = impl.isGoalState(current);
               rcLocal(hasFinished) = isGoalState;
@@ -259,10 +267,22 @@ module AStar {
                 var neighbors: domain(idxT);
                 for neighbor in impl.findNeighbors(current) do {
                   // TODO: figure out why idxNeighbor == 0 and not unique
-                  const idxNeighbor = _aquireIdxToNewNeigbor(allStates, neighbor, sizeFromLastStage, size);
+                  const idxNeighbor = _aquireIdxToNewNeigbor(allStates, gScores, neighbor, sizeFromLastStage, size);
                   const distance = impl.distance(current, neighbor);
                   const tentativeGScore = gScore + distance;
-                  writeln("here: ", here, " index neighbor: ", idxNeighbor, " gScore neighbor: ", tentativeGScore);
+                  writef("f-scores: ");
+                  for i in 0..4096 {
+                    writef("%i=%r ", i, fScores[i]);
+                  }
+                  writeln();
+
+                  writef("g-scores: ");
+                  for i in 0..4096 {
+                    writef("%i=%r ", i, gScores[i]);
+                  }
+                  writeln();
+
+                  writeln("here: ", here, " size: ", sizeFromLastStage, " index neighbor: ", idxNeighbor, " distance: ", distance, " gScore neighbor: ", tentativeGScore);
                   // heuristic(neighbor) is the heuristic distance from neighbor to finish
                   // fScore[neighbor] is the heuristic distance from start to finish.
                   // We know we hare passing through neighbor.
@@ -289,7 +309,9 @@ module AStar {
                 on path {
                   const nextStep = _aggregateNextStepAcrossNodes(lowestDistances, lowestNextSteps, allStates);
                   path.append(nextStep);
-                  writeln("Adding step:\n", nextStep ,"\nto full path:\n", path);
+                  // writeln("Adding step:\n", nextStep);
+                  // for step in path.these() do
+                  //  writeln(step);
                 }          
                 writeln("Continuing aStar to next iteration");
               }
