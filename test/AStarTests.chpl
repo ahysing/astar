@@ -292,4 +292,20 @@ proc test_reverseSearchForOpenState_inputIsOusideOfRange(test: borrowed Test) th
   test.assertFalse(found);
 }
 
+proc test_reverseSearchForOpenState_oneValueIsUnvisited(test: borrowed Test) throws {
+  const impl = new CounterImpl();
+  const searcher = new Searcher(int, impl);
+  const lookingFor = 8;
+  const allStates: [0..20] int = lookingFor;
+  var gScores: [0..20] real = min(real);
+  const expectedIdx = 5;
+  gScores[expectedIdx] = 0; // 0 is not equal to min(real), and is therefore marked as not visited.
+  const high = 10;
+  
+  var (found, idx) = searcher._reverseSearchForOpenState(allStates, gScores, lookingFor, high);
+
+  test.assertTrue(found);
+  test.assertEqual(expectedIdx, idx);
+}
+
 UnitTest.main();
