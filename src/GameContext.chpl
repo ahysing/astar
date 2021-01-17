@@ -19,17 +19,9 @@ class GameContext {
 }
 
 inline proc ==(a: GameContext, b: GameContext): bool {
-  return (&& reduce (a.board == b.board)) && a.player == b.player;
+  return && reduce (a.board == b.board);
 }
 
 inline proc <(a: GameContext, b: GameContext): bool {
-  if (&& reduce (a.board == b.board)) then
-    if a.player == Player.Red && b.player != Player.Red then
-      return true;
-    else if a.player != Player.Red && b.player == Player.Red then
-      return false;
-    else
-      return false;
-  else
-    return (&& reduce (a.board < b.board));
+  return (&& reduce (a.board < b.board));
 }

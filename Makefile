@@ -1,8 +1,8 @@
 .PHONY: all test debug run clean
 
 all:
-	mason build --release
 	mason build -g
+	mason build --release
 
 target/release/AStar:
 	mason build --release
@@ -14,7 +14,7 @@ target/debug/AStar:
 	mason build -g
 
 run: target/release/AStar Mason.lock
-	mason run --build
+	target/release/AStar
 
 debug: target/debug/AStar
 	lldb target/debug/AStar

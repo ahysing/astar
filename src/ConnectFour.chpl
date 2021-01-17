@@ -52,30 +52,39 @@ record ConnectFour {
   }
 
   proc _createNextState(context: GameContext, placeAt: 2*int): GameContext {
-    var nextBoard = context.board;
     const nextTile =  placeTile(context.player);
-    nextBoard[placeAt] = nextTile;
+    var nextBoard: [BoardDom] Tile;
+    for d in nextBoard.domain do
+      if d == placeAt then nextBoard[d] = nextTile;
+      else nextBoard[d] = context.board[d];
     const nextPlayer = findNextPlayer(context.player);
     const nextState = new shared GameContext(player=nextPlayer, board=nextBoard);
-    writeln("_createNextState next tile: ", nextTile, " nextPlayer ", nextPlayer, " nextBoard\n", nextBoard);
+    // writeln("_createNextState next tile: ", nextTile, " nextPlayer ", nextPlayer, " nextBoard\n", nextBoard);
     return nextState;
   }
-
   iter const findNeighbors(context: GameContext) {
     const vertical = context.board.domain.dim[0];
     const horizontal = context.board.domain.dim[1];
     const firstIndex = context.board.domain.low[0];
     for j in horizontal {
       var hasAny = false;  
-      for i in vertical by -1 {
-        if context.board[i, j] != Tile.Unset && context.board.domain.contains((i - 1, j)) {
+      for i in vertical {
+        if context.board[i, j] != Tile.Unset 
+          && context.board.domain.contains((i + 1, j))
+          && context.board[i + 1, j] == Tile.Unset {
           hasAny = true;
-          yield _createNextState(context, (i - 1, j));
+          yield _createNextState(context, (i + 1, j));
           break;
         }
       }
-      if ! hasAny then
-        yield _createNextState(context, (firstIndex, j));
+      if ! hasAny {
+        if context.board[firstIndex, j] == Tile.Unset then
+          yield _createNextState(context, (firstIndex, j));
+        else {
+          writeln("Unsupported board\n", context.board);
+          halt("findNeighbors failed...");
+        } 
+      }
     }
   }
 
@@ -252,5 +261,20 @@ record ConnectFour {
       if a.board[idx] != b.board[idx] then
         distance += 1.0;
     return distance:real;
+  }
+
+  proc printState(const ref state: GameContext) {
+    writef("[");
+    for d in state.board do
+      select d {
+        when Tile.Red do writef("\x1b[31mR ");
+        when Tile.Yellow do writef("\x1b[33mY ");
+        otherwise do writef("\x1b[0mU ");
+      }
+    writef("\x1b[0m");
+    select state.player {
+      when Player.Red do writeln("] Player=R");
+      when Player.Yellow do writeln("] Player=Y");
+    }
   }
 }

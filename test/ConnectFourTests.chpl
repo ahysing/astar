@@ -176,6 +176,20 @@ proc test_findNeighbors_numberOfNeigborsIs7(test: borrowed Test) throws {
   test.assertEqual(7, it);
 }
 
+proc test_findNeighbors_inputIsBoardWithSingleTile_numberOfNeigborsIs7(test: borrowed Test) throws {
+  const connectFour = new ConnectFour(1);
+  var start: [BoardDom] Tile;
+  start[0, 0] = Tile.Red;
+  var gameContext = new GameContext(board=start, player=Player.Yellow);
+  var it = 0;
+
+  for neighbor in connectFour.findNeighbors(gameContext) {
+    it += 1;
+  }
+
+  test.assertEqual(7, it);
+}
+
 proc test_findNeighbors(test: borrowed Test) throws {
   const connectFour = new ConnectFour(1);
   var start: [BoardDom] Tile;

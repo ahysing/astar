@@ -25,6 +25,10 @@ record CounterImpl {
   proc distance(a: Int, b: Int) {
     return abs(a.value - b.value);
   }
+
+  proc printState(state: Int) {
+    writef("%i", state.value);
+  }
 }
 
 proc test_init_Searcher(test: borrowed Test) throws {
@@ -253,11 +257,13 @@ proc test_reverseSearchForOpenState_InputIsZeroOne(test: borrowed Test) throws {
   const searcher = new Searcher(int, impl);
 
   const allStates: [0..1] int = {0..1};
+  var allStatesLock$: sync bool;
+  allStatesLock$.writeXF(true);
   const gScores: [0..1] real = 0.0;
   const lookingFor = 1;
   const high = 1;
   
-  var (found, idx) = searcher._reverseSearchForOpenState(allStates, gScores, lookingFor, high);
+  var (found, idx) = searcher._reverseSearchForOpenState(allStates, allStatesLock$, gScores, lookingFor, high);
 
   test.assertTrue(found);
   test.assertEqual(lookingFor, idx);
@@ -268,11 +274,13 @@ proc test_reverseSearchForOpenState(test: borrowed Test) throws {
   const searcher = new Searcher(int, impl);
 
   const allStates: [0..20] int = {0..20};
+  var allStatesLock$: sync bool;
+  allStatesLock$.writeXF(true);
   const gScores: [0..20] real = 0.0;
   const lookingFor = 8;
   const high = 10;
   
-  var (found, idx) = searcher._reverseSearchForOpenState(allStates, gScores, lookingFor, high);
+  var (found, idx) = searcher._reverseSearchForOpenState(allStates, allStatesLock$, gScores, lookingFor, high);
 
   test.assertTrue(found);
   test.assertEqual(lookingFor, idx);
@@ -283,11 +291,13 @@ proc test_reverseSearchForOpenState_inputIsOusideOfRange(test: borrowed Test) th
   const searcher = new Searcher(int, impl);
 
   const allStates: [0..20] int = {0..20};
+  var allStatesLock$: sync bool;
+  allStatesLock$.writeXF(true);
   const gScores: [0..20] real = 0.0;
   const lookingFor = 11;
   const high = 10;
   
-  var (found, idx) = searcher._reverseSearchForOpenState(allStates, gScores, lookingFor, high);
+  var (found, idx) = searcher._reverseSearchForOpenState(allStates, allStatesLock$, gScores, lookingFor, high);
 
   test.assertFalse(found);
 }
@@ -297,15 +307,28 @@ proc test_reverseSearchForOpenState_oneValueIsUnvisited(test: borrowed Test) thr
   const searcher = new Searcher(int, impl);
   const lookingFor = 8;
   const allStates: [0..20] int = lookingFor;
+  var allStatesLock$: sync bool;
+  allStatesLock$.writeXF(true);
+  
   var gScores: [0..20] real = min(real);
   const expectedIdx = 5;
   gScores[expectedIdx] = 0; // 0 is not equal to min(real), and is therefore marked as not visited.
   const high = 10;
   
-  var (found, idx) = searcher._reverseSearchForOpenState(allStates, gScores, lookingFor, high);
+  var (found, idx) = searcher._reverseSearchForOpenState(allStates, allStatesLock$, gScores, lookingFor, high);
 
   test.assertTrue(found);
   test.assertEqual(expectedIdx, idx);
+}
+
+proc test_aStar(test: borrowed Test) throws {
+  const impl = new CounterImpl();
+  const searcher = new Searcher(Int, impl);
+  var start = new Int();
+  var defaultInt = new Int();
+  const g = 0.0:real;
+  var result = searcher.aStar(start, defaultInt, g);
+  test.assertTrue(true);
 }
 
 UnitTest.main();
