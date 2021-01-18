@@ -9,7 +9,7 @@ module AStar {
   private use IO.FormattedIO;
   use LinkedLists;
 
-  config const verbose = false;
+  config const debug = false;
 
   type idxT = int(64);
   const visitedStateGScore = min(real);
@@ -132,13 +132,13 @@ module AStar {
       // https://chapel-lang.org/docs/technotes/atomics.html
       const (foundOrAquired, idxNeighbor) = _reverseSearchForOpenState(allStates, allStatesLock$, gScores, neighbor, hi = sizeFromLastStage);
       if foundOrAquired {
-        if verbose then
+        if debug then
           writeln("index ", idxNeighbor, " state exists already");
         return idxNeighbor;
       } else {
         const initialSize = size.read();
         const lastIdx = _aquireNewLastIndex(size, initialSize);
-        if verbose then
+        if debug then
           writeln("index ", lastIdx, " created new");
         return lastIdx;
       }
@@ -282,7 +282,7 @@ module AStar {
                 var allStatesLock$: sync bool;
                 allStatesLock$.writeXF(true);
                 coforall neighbor in impl.findNeighbors(current) do {
-                  if verbose && here.id == 0 {
+                  if debug && here.id == 0 {
                     printStateLock$;                    // Read lock$ (wait)
                     writef("neighbor i: %7.0dr ", (it.fetchAdd(1):real));
                     impl.printState(neighbor);
@@ -321,7 +321,7 @@ module AStar {
                   const nextStep = _aggregateNextStepAcrossNodes(lowestDistances, lowestNextSteps, allStates);
                   path.append(nextStep);
                   // // writeln("Adding step:\n", nextStep);
-                  if verbose {
+                  if debug {
                     writeln("path:");
                     for step in path.these() do
                       writeln(step);
