@@ -66,6 +66,7 @@ record ConnectFour {
     const vertical = context.board.domain.dim[0];
     const horizontal = context.board.domain.dim[1];
     const firstIndex = context.board.domain.low[0];
+    var atLeastOneNeighbor = false;
     for j in horizontal {
       var hasAny = false;  
       for i in vertical {
@@ -73,18 +74,21 @@ record ConnectFour {
           && context.board.domain.contains((i + 1, j))
           && context.board[i + 1, j] == Tile.Unset {
           hasAny = true;
+          atLeastOneNeighbor = true;
           yield _createNextState(context, (i + 1, j));
           break;
         }
       }
-      if ! hasAny {
-        if context.board[firstIndex, j] == Tile.Unset then
-          yield _createNextState(context, (firstIndex, j));
-        else {
-          writeln("Unsupported board\n", context.board);
-          halt("findNeighbors failed...");
-        } 
+
+      if ! hasAny && context.board[firstIndex, j] == Tile.Unset {
+        yield _createNextState(context, (firstIndex, j));
+        atLeastOneNeighbor = true;
       }
+    }
+
+    if ! atLeastOneNeighbor {
+      writeln("Unsupported board\n", context.board);
+      halt("findNeighbors failed...");
     }
   }
 
