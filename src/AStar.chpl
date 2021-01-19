@@ -17,7 +17,7 @@ module AStar {
   public class Searcher {
     type eltType;
     const impl: record;
-    param _high: idxT = 1 << 16;
+    param _high: idxT = 1 << 30;
     param _low: idxT = 0;
     param startIdx = _low;
     /*
