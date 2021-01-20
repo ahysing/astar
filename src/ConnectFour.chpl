@@ -16,21 +16,23 @@ record ConnectFour {
   }
 
   proc isGoalState(context: GameContext) {
-    var isGoal: atomic bool = false;
-    cobegin {
-      {
-        var nextState = new GameContext(board=context.board, player=Player.Red);
-        if countWindows(nextState, 4) then
-          isGoal.testAndSet();
-      }
-      {
-        var nextState = new GameContext(board=context.board, player=Player.Yellow);
-        if countWindows(nextState, 4) then
-          isGoal.testAndSet();
-      }
+    param windowSize = 4;
+    const players = [Player.Red, Player.Yellow];
+    const board = context.board;
+    for playersTurn in players {
+      const tile = placeTile(playersTurn);
+      // horizontal
+      // vertical
+      // Diagonal Left to Right
+      // Diagonal Right to Left
+      if countWindowsHorizontal(board, tile, windowSize) > 0 ||
+         countWindowsVertical(board, tile, windowSize) > 0 ||
+         countWindowsDiagonalLeftToRight(board, tile, windowSize) > 0 ||
+         countWindowsDiagonalRightToLeft(board, tile, windowSize) > 0 then
+        return true;
     }
 
-    return isGoal.read();
+    return false;
   }
 
   proc findNextPlayer(player: Player): Player {
