@@ -7,9 +7,11 @@ module AStar {
   private use ReplicatedVar;
   private use Search;
   private use IO.FormattedIO;
+  private use Time;
   use LinkedLists;
 
   config const debug = false;
+  config const progress = false;
 
   type idxT = int(64);
   const visitedStateGScore = min(real);
@@ -245,7 +247,10 @@ module AStar {
       // during the current iteration
       var lowestDistances: [rcDomain] real;
       var lowestNextSteps: [rcDomain] idxT;
-      
+
+      var lastSizeSeen$: sync idxT = 1;
+      var progressPercentageSpent: Timer;
+      progressPercentageSpent.start();
       for loc in Locales {
         on loc {
           var it: atomic int = 0;
@@ -320,20 +325,30 @@ module AStar {
                 on path {
                   const nextStep = _aggregateNextStepAcrossNodes(lowestDistances, lowestNextSteps, allStates);
                   path.append(nextStep);
-                  // // writeln("Adding step:\n", nextStep);
-                  if debug {
-                    writeln("path:");
-                    for step in path.these() do
-                      writeln(step);
+                }
+
+                if progress {
+                  const delta = allStates.domain.high - allStates.domain.low;
+                  const currentSize = size.read();
+                  const currentPercent = ((currentSize / delta) * 100): int;
+                  const l = lastSizeSeen$;
+                  const previousPercent = ((l / delta) * 100): int;
+                  if currentPercent != previousPercent {
+                    const timeSpent = progressPercentageSpent.elapsed(TimeUnits.seconds): int;
+                    writeln("Progress ", currentPercent, " %. Spent ", timeSpent," seconds...");
+                    lastSizeSeen$ = currentSize;
+                    progressPercentageSpent.clear(); 
+                  } else {
+                    lastSizeSeen$ = l;
                   }
-                }          
+                }     
                 // writeln("Continuing aStar to next iteration");
               }
             }
           }
         }
         
-
+        progressPercentageSpent.stop();
         return (_aggregateLowestDistanceAcrossNodes(lowestDistances, lowestNextSteps), path); 
       }
 

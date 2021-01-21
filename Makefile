@@ -16,8 +16,9 @@ target/debug/AStar:
 run: target/release/AStar Mason.lock
 	target/release/AStar
 
+# https://chapel-lang.org/docs/usingchapel/debugging.html?highlight=gdb
 debug: target/debug/AStar
-	lldb target/debug/AStar
+	target/debug/AStar --gdb || target/debug/AStar --lldb
 
 test:
 	mason test --show --print-callstack-on-error
