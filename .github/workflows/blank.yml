@@ -21,7 +21,7 @@ jobs:
 
       - name: Compile chapel run unit tests
         run: |
-          export CHPL_VERSION=1.23.0
+          export CHPL_VERSION=1.24.0
           export CHPL_HOME=/opt/chapel/$CHPL_VERSION
           export CHPL_GMP=system
 
