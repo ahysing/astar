@@ -99,7 +99,7 @@ module AStar {
                                     hi: idxT) {
       const low = allStates.domain.low;
       const high = _getTopIndex(allStates, hi);
-      allStatesLock$;
+      allStatesLock$.readFE();
       for i in low..high by -1 {
         assert(gScores.domain.contains(i));
         assert(allStates.domain.contains(i));
@@ -201,7 +201,7 @@ module AStar {
     }
 
     proc _updateNeighbor(allStates, allStatesLock$, fScores, gScores, idxNeighbor, neighbor, distance, tentativeGScore) {
-      allStatesLock$;
+      allStatesLock$.readFE();
       allStates[idxNeighbor] = neighbor;
       allStatesLock$.writeXF(true);
       
@@ -288,7 +288,7 @@ module AStar {
                 allStatesLock$.writeXF(true);
                 coforall neighbor in impl.findNeighbors(current) do {
                   if debug && here.id == 0 {
-                    printStateLock$;                    // Read lock$ (wait)
+                    printStateLock$.readFE();                    // Read lock$ (wait)
                     writef("neighbor i: %7.0dr ", (it.fetchAdd(1):real));
                     impl.printState(neighbor);
                     writef("came from           ");
@@ -331,15 +331,15 @@ module AStar {
                   const delta = allStates.domain.high - allStates.domain.low;
                   const currentSize = size.read();
                   const currentPercent = ((currentSize / delta) * 100): int;
-                  const l = lastSizeSeen$;
+                  const l = lastSizeSeen$.readFE();
                   const previousPercent = ((l / delta) * 100): int;
                   if currentPercent != previousPercent {
                     const timeSpent = progressPercentageSpent.elapsed(TimeUnits.seconds): int;
                     writeln("Progress ", currentPercent, " %. Spent ", timeSpent," seconds...");
-                    lastSizeSeen$ = currentSize;
+                    lastSizeSeen$.writeXF(currentSize);
                     progressPercentageSpent.clear(); 
                   } else {
-                    lastSizeSeen$ = l;
+                    lastSizeSeen$.writeXF(l);
                   }
                 }     
                 // writeln("Continuing aStar to next iteration");
